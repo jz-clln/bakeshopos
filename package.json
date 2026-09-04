@@ -1,0 +1,14 @@
+{
+  "name": "bakeshopos-rls-test",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone script to verify RLS isolates organizations in BakeShopOS",
+  "main": "test-rls.js",
+  "scripts": {
+    "test": "node test-rls.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5"
+  }
+}
