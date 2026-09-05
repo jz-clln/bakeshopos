@@ -1,0 +1,10 @@
+# File: .gitignore
+
+# Real environment files — never commit actual secrets.
+.env
+.env.development
+.env.staging
+.env.production
+.env.local
+
+node_modules
