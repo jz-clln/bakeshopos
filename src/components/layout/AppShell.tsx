@@ -1,20 +1,16 @@
 // File: app/src/components/layout/AppShell.tsx
 
-import type { ReactNode } from 'react';
-import { NavBar } from './NavBar';
+import { Outlet } from 'react-router-dom';
+import { Sidebar } from './SideBar';
 import { TabBar } from './TabBar';
 
-interface AppShellProps {
-  title: string;
-  trailing?: ReactNode;
-  children: ReactNode;
-}
-
-export function AppShell({ title, trailing, children }: AppShellProps) {
+export function AppShell() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <NavBar title={title} trailing={trailing} />
-      <main className="flex-1 px-4 pb-24">{children}</main>
+    <div className="min-h-[100dvh] bg-platinum/30 md:flex">
+      <Sidebar />
+      <main className="flex-1 min-w-0 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0">
+        <Outlet />
+      </main>
       <TabBar />
     </div>
   );

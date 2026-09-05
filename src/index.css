@@ -14,3 +14,13 @@ body {
   @apply bg-[#FAFAF8] text-gray-900 antialiased;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ── Easing tokens ────────────────────────────────────────────
+   Used by CSS transitions across the app (buttons, cards, etc.)
+   Motion components use these values inline via Framer Motion.
+──────────────────────────────────────────────────────────── */
+:root {
+  --ease-out-quint:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-out-cubic:    cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+}
