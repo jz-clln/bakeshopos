@@ -2,7 +2,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './lib/auth-context';
-import { LoginScreen } from './screens/LoginScreen';
+import { AuthScreen } from './screens/AuthScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { OrdersScreen } from './screens/OrdersScreen';
 import { CatalogScreen } from './screens/CatalogScreen';
@@ -19,7 +19,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <LoginScreen />;
+    return <AuthScreen />;
   }
 
   return (
