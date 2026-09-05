@@ -4,6 +4,8 @@
 // look. Creating/editing products comes in 1B-iii — this screen is
 // read-only for now.
 
+import { Link } from 'react-router-dom';
+import { Plus, ChevronRight } from 'lucide-react';
 import { AppShell } from '../components/layout/AppShell';
 import { useCategories } from '../hooks/useCategories';
 import { useProducts } from '../hooks/useProducts';
@@ -27,7 +29,14 @@ export function CatalogScreen() {
   const isError = categoriesError || productsError;
 
   return (
-    <AppShell title="Catalog">
+    <AppShell
+      title="Catalog"
+      trailing={
+        <Link to="/catalog/new" aria-label="Add product" className="text-accent">
+          <Plus size={24} />
+        </Link>
+      }
+    >
       {isLoading && <LoadingState />}
       {!isLoading && isError && <ErrorState />}
       {!isLoading && !isError && (
@@ -118,16 +127,22 @@ function ProductRow({ product }: { product: ProductListItem }) {
   const startingPrice = getStartingPrice(product.variants);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 min-h-[56px]">
+    <Link
+      to={`/catalog/${product.id}`}
+      className="flex items-center justify-between px-4 py-3 min-h-[56px] active:bg-gray-50"
+    >
       <div>
         <p className="text-base text-gray-900">{product.name}</p>
         {!product.is_active && (
           <span className="text-xs text-gray-400">Inactive</span>
         )}
       </div>
-      <p className="text-sm text-gray-500 shrink-0 ml-3">
-        {startingPrice !== null ? `From ${formatPrice(startingPrice)}` : 'No price set'}
-      </p>
-    </div>
+      <div className="flex items-center gap-2 shrink-0 ml-3">
+        <p className="text-sm text-gray-500">
+          {startingPrice !== null ? `From ${formatPrice(startingPrice)}` : 'No price set'}
+        </p>
+        <ChevronRight size={16} className="text-gray-300" />
+      </div>
+    </Link>
   );
 }
