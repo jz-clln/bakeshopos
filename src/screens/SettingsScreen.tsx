@@ -1,29 +1,124 @@
 // File: app/src/screens/SettingsScreen.tsx
-//
-// The one part of this shell that's actually functional right now —
-// everything needs a way to sign out to be testable end to end.
 
-import { AppShell } from '../components/layout/AppShell';
+import { motion } from 'framer-motion';
+import {
+  Instagram,
+  Facebook,
+  ChevronRight,
+  LogOut,
+  Store,
+  Bell,
+  ShieldCheck,
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 
+const EASE = [0.23, 1, 0.32, 1] as const;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 10 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { duration: 0.26, ease: EASE, delay: i * 0.07 },
+  }),
+};
+
 export function SettingsScreen() {
-  const { signOut, role } = useAuth();
+  const { signOut, role, session } = useAuth() as {
+    signOut?: () => void;
+    role?: string;
+    session: { user?: { user_metadata?: { organization_name?: string } } } | null;
+  };
+
+  const shopName = session?.user?.user_metadata?.organization_name?.trim() || 'Your Shop';
 
   return (
-    <AppShell title="Settings">
-      <div className="pt-4 space-y-4">
-        {role && (
-          <p className="text-sm text-gray-500">
-            Signed in as <span className="font-medium text-gray-700">{role}</span>
-          </p>
-        )}
+    <ScreenShell>
+      {/* Header */}
+      <motion.h1
+        custom={0} variants={fadeUp} initial="hidden" animate="visible"
+        className="font-display text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark mb-6"
+      >
+        Settings
+      </motion.h1>
+
+      {/* Shop identity card */}
+      <motion.div
+        custom={1} variants={fadeUp} initial="hidden" animate="visible"
+        className="bg-accent-dark rounded-[20px] px-5 py-5 flex items-center gap-4 mb-5 shadow-[0_4px_20px_rgba(0,0,0,0.12)]"
+      >
+        <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center text-lg font-bold text-white shrink-0">
+          {shopName.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <p className="text-white font-semibold text-[17px] truncate">{shopName}</p>
+          {role && (
+            <p className="text-white/60 text-sm capitalize">{role}</p>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Channels */}
+      <motion.section custom={2} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
+          Sales channels
+        </p>
+        <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
+          <SettingsRow icon={<Instagram size={17} className="text-accent-dark" />} label="Instagram" description="Not connected" />
+          <SettingsRow icon={<Facebook size={17} className="text-accent-dark" />} label="Facebook & Messenger" description="Not connected" />
+        </div>
+      </motion.section>
+
+      {/* General settings */}
+      <motion.section custom={3} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
+          General
+        </p>
+        <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
+          <SettingsRow icon={<Store size={17} className="text-accent-dark" />} label="Shop details" />
+          <SettingsRow icon={<Bell size={17} className="text-accent-dark" />} label="Notifications" />
+          <SettingsRow icon={<ShieldCheck size={17} className="text-accent-dark" />} label="Privacy & security" />
+        </div>
+      </motion.section>
+
+      {/* Sign out */}
+      <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible">
         <button
-          onClick={signOut}
-          className="w-full min-h-[44px] rounded-xl border border-gray-300 text-red-600 font-medium"
+          onClick={() => signOut?.()}
+          className="w-full flex items-center justify-center gap-2 min-h-[52px] rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-red-500 text-[15px] font-semibold transition-colors duration-150 hover:bg-red-50 active:scale-[0.98]"
         >
-          Sign Out
+          <LogOut size={17} strokeWidth={2} />
+          Sign out
         </button>
-      </div>
-    </AppShell>
+      </motion.div>
+    </ScreenShell>
   );
+}
+
+function SettingsRow({
+  icon,
+  label,
+  description,
+  to,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  description?: string;
+  to?: string;
+}) {
+  const inner = (
+    <div className="flex items-center gap-4 px-5 min-h-[56px] py-3 transition-colors duration-150 active:bg-platinum/30">
+      <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[15px] font-medium text-accent-dark">{label}</p>
+        {description && <p className="text-[13px] text-olive">{description}</p>}
+      </div>
+      <ChevronRight size={15} className="text-olive/50 shrink-0" />
+    </div>
+  );
+
+  return to ? <Link to={to}>{inner}</Link> : <button className="w-full text-left">{inner}</button>;
 }

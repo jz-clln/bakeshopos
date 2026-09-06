@@ -1,15 +1,8 @@
 // File: app/src/screens/ProductEditorScreen.tsx
-//
-// Pushed full-screen (no tab bar) rather than living inside AppShell —
-// this is a form, not a tab destination, matching how iOS treats
-// create/edit screens.
-//
-// New products only get the basic fields at first. Sizes and options
-// need a real product to attach to, so those sections only appear
-// once the product has been saved for the first time.
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { ChevronLeft, Trash2 } from 'lucide-react';
 import { NavBar } from '../components/layout/NavBar';
 import { VariantsSection } from '../components/catalog/VariantsSection';
@@ -22,14 +15,22 @@ import {
   useUpdateProduct,
 } from '../hooks/useProducts';
 
+const EASE = [0.23, 1, 0.32, 1] as const;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 10 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { duration: 0.26, ease: EASE, delay: i * 0.07 },
+  }),
+};
+
 export function ProductEditorScreen() {
   const { productId: routeProductId } = useParams<{ productId: string }>();
   const isNewProduct = !routeProductId || routeProductId === 'new';
   const navigate = useNavigate();
 
-  const { data: product, isLoading } = useProduct(
-    isNewProduct ? undefined : routeProductId
-  );
+  const { data: product, isLoading } = useProduct(isNewProduct ? undefined : routeProductId);
   const { data: categories } = useCategories();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -42,7 +43,6 @@ export function ProductEditorScreen() {
   const [leadTimeDays, setLeadTimeDays] = useState('0');
   const [minQuantity, setMinQuantity] = useState('1');
 
-  // Once an existing product loads, fill the form from it.
   useEffect(() => {
     if (product) {
       setName(product.name);
@@ -56,15 +56,18 @@ export function ProductEditorScreen() {
 
   if (!isNewProduct && isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-400">Loading…</p>
+      <div className="min-h-[100dvh] flex items-center justify-center">
+        <div className="space-y-3 w-full max-w-sm px-5 animate-pulse">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-14 rounded-[16px] bg-platinum/60" />
+          ))}
+        </div>
       </div>
     );
   }
 
   function handleSave() {
     if (!name.trim()) return;
-
     if (isNewProduct) {
       createProduct.mutate(
         {
@@ -75,12 +78,7 @@ export function ProductEditorScreen() {
           leadTimeDays: Number(leadTimeDays) || 0,
           minQuantity: Number(minQuantity) || 1,
         },
-        {
-          // Swap into edit mode for the product we just created, so
-          // sizes and options can now be added to it.
-          onSuccess: (newProduct) =>
-            navigate(`/catalog/${newProduct.id}`, { replace: true }),
-        }
+        { onSuccess: (p) => navigate(`/catalog/${p.id}`, { replace: true }) }
       );
     } else {
       updateProduct.mutate({
@@ -108,54 +106,58 @@ export function ProductEditorScreen() {
   const saving = createProduct.isPending || updateProduct.isPending;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-[100dvh] flex flex-col bg-[#FAFAF8]">
       <NavBar
-        title={isNewProduct ? 'New Product' : product?.name ?? 'Product'}
+        title={isNewProduct ? 'New Product' : (product?.name ?? 'Product')}
         leading={
-          <button onClick={() => navigate('/catalog')} aria-label="Back to catalog">
-            <ChevronLeft size={26} className="text-accent" />
+          <button
+            onClick={() => navigate('/catalog')}
+            aria-label="Back to catalog"
+            className="flex items-center gap-1 min-h-[44px] min-w-[44px] -ml-2 px-2 text-accent transition-opacity duration-150 hover:opacity-70"
+          >
+            <ChevronLeft size={22} strokeWidth={2.5} />
+            <span className="text-[15px] font-medium hidden sm:inline">Catalog</span>
           </button>
         }
         trailing={
           <button
             onClick={handleSave}
             disabled={saving || !name.trim()}
-            className="text-accent font-medium disabled:opacity-40"
+            className="min-h-[44px] px-2 text-[15px] font-semibold text-accent disabled:opacity-30 transition-opacity duration-150 hover:opacity-70"
           >
-            Save
+            {saving ? 'Saving…' : 'Save'}
           </button>
         }
       />
 
       <main
-        className="flex-1 px-4 space-y-6"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        className="flex-1 px-5 md:px-10 max-w-5xl mx-auto w-full space-y-5"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
       >
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2 px-1">
+        {/* Details section */}
+        <motion.section custom={0} variants={fadeUp} initial="hidden" animate="visible">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
             Details
-          </h2>
-          <div className="rounded-xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+          </p>
+          <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
             <FormRow label="Name">
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Chocolate Cake"
-                className="w-full text-base focus:outline-none"
+                className="w-full text-[15px] text-accent-dark placeholder:text-olive/50 bg-transparent focus:outline-none"
               />
             </FormRow>
             <FormRow label="Category">
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full text-base bg-transparent focus:outline-none"
+                className="w-full text-[15px] text-accent-dark bg-transparent focus:outline-none appearance-none"
               >
                 <option value="">None</option>
-                {(categories ?? []).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
+                {(categories ?? []).map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
             </FormRow>
@@ -165,7 +167,7 @@ export function ProductEditorScreen() {
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
                 placeholder="Optional"
-                className="w-full text-base focus:outline-none"
+                className="w-full text-[15px] text-accent-dark placeholder:text-olive/50 bg-transparent focus:outline-none"
               />
             </FormRow>
             <FormRow label="Lead time (days)">
@@ -174,52 +176,64 @@ export function ProductEditorScreen() {
                 inputMode="numeric"
                 value={leadTimeDays}
                 onChange={(e) => setLeadTimeDays(e.target.value)}
-                className="w-full text-base focus:outline-none"
+                className="w-full text-[15px] text-accent-dark bg-transparent focus:outline-none"
               />
             </FormRow>
-            <FormRow label="Min. order qty">
+            <FormRow label="Min. quantity">
               <input
                 type="number"
                 inputMode="numeric"
                 value={minQuantity}
                 onChange={(e) => setMinQuantity(e.target.value)}
-                className="w-full text-base focus:outline-none"
+                className="w-full text-[15px] text-accent-dark bg-transparent focus:outline-none"
               />
             </FormRow>
           </div>
-          <div className="mt-3 rounded-xl bg-white border border-gray-200 px-4 py-3">
-            <label className="block text-sm text-gray-500 mb-1">Description</label>
+        </motion.section>
+
+        {/* Description */}
+        <motion.section custom={1} variants={fadeUp} initial="hidden" animate="visible">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
+            Description
+          </p>
+          <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Optional"
-              className="w-full text-base focus:outline-none resize-none"
+              rows={4}
+              placeholder="Optional — describe this product for your team or customers."
+              className="w-full text-[15px] text-accent-dark placeholder:text-olive/50 bg-transparent focus:outline-none resize-none leading-relaxed"
             />
           </div>
-        </section>
+        </motion.section>
 
+        {/* Variants + Options (existing product only) */}
         {isNewProduct ? (
-          <p className="text-sm text-gray-400 px-1">
+          <motion.p
+            custom={2} variants={fadeUp} initial="hidden" animate="visible"
+            className="text-sm text-olive px-1"
+          >
             Save the product first to add sizes and options.
-          </p>
+          </motion.p>
         ) : (
           <>
-            <VariantsSection
-              productId={routeProductId!}
-              variants={product?.variants ?? []}
-            />
-            <OptionsSection
-              productId={routeProductId!}
-              options={product?.options ?? []}
-            />
+            <motion.div custom={2} variants={fadeUp} initial="hidden" animate="visible">
+              <VariantsSection productId={routeProductId!} variants={product?.variants ?? []} />
+            </motion.div>
+            <motion.div custom={3} variants={fadeUp} initial="hidden" animate="visible">
+              <OptionsSection productId={routeProductId!} options={product?.options ?? []} />
+            </motion.div>
 
-            <button
-              onClick={handleDelete}
-              className="w-full flex items-center justify-center gap-2 min-h-[44px] rounded-xl border border-red-200 text-red-600 font-medium"
-            >
-              <Trash2 size={18} /> Delete Product
-            </button>
+            {/* Delete */}
+            <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible">
+              <button
+                onClick={handleDelete}
+                className="w-full flex items-center justify-center gap-2 min-h-[52px] rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-red-500 text-[15px] font-semibold transition-colors duration-150 hover:bg-red-50 active:scale-[0.98]"
+              >
+                <Trash2 size={17} strokeWidth={2} />
+                Delete Product
+              </button>
+            </motion.div>
           </>
         )}
       </main>
@@ -229,9 +243,9 @@ export function ProductEditorScreen() {
 
 function FormRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
-      <label className="text-sm text-gray-500 w-32 shrink-0">{label}</label>
-      {children}
+    <div className="flex items-center gap-4 px-5 min-h-[52px] py-3">
+      <label className="text-[15px] text-olive w-36 shrink-0">{label}</label>
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }
