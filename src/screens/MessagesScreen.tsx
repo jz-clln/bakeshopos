@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Instagram, Facebook, ChevronRight, Settings } from 'lucide-react';
+import { Facebook, ChevronRight, Settings } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
+import { getFacebookConnection } from '../api/facebook';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -28,8 +29,12 @@ const listRow = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: EASE } },
 };
 
-/* ─── Types ─── */
-type Channel = 'instagram' | 'facebook';
+/* ─── Types ───
+   Only 'facebook_messenger' is live. 'instagram' and 'manual' exist in
+   the conversations.channel enum but aren't surfaced in this UI yet —
+   Instagram is Phase 3, and there's no "manual" conversation creation
+   flow built yet either. */
+type Channel = 'facebook_messenger';
 
 interface Conversation {
   id: string;
@@ -40,43 +45,9 @@ interface Conversation {
   unread_count: number;
 }
 
-const CHANNEL_ICON: Record<Channel, typeof Instagram> = {
-  instagram: Instagram,
-  facebook:  Facebook,
-};
-
-const CHANNEL_COLOR: Record<Channel, string> = {
-  instagram: 'bg-gradient-to-br from-purple-500 to-pink-500',
-  facebook:  'bg-blue-600',
-};
-
-type TabValue = 'all' | Channel;
-
-const TABS: { label: string; value: TabValue }[] = [
-  { label: 'All',       value: 'all'       },
-  { label: 'Instagram', value: 'instagram' },
-  { label: 'Facebook',  value: 'facebook'  },
-];
-
-function initials(name: string) {
-  const p = (name ?? '').trim().split(/\s+/);
-  return ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase();
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
-}
-
 /* ─── Screen ─── */
 export function MessagesScreen() {
   const { organizationId } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabValue>('all');
   const [connected, setConnected] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,32 +55,27 @@ export function MessagesScreen() {
   useEffect(() => {
     if (!organizationId) return;
 
+    // Captured into its own const so TypeScript can trust it's a
+    // string inside the nested async function below — narrowing on
+    // the destructured `organizationId` from useAuth() doesn't carry
+    // into a function defined later in the same closure.
+    const orgId = organizationId;
+
     async function load() {
       setLoading(true);
 
-      // Check if any channel integration is active
-      const { data: integrations } = await supabase
-        .from('channel_integrations')
-        .select('channel, is_active')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true)
-        .limit(1);
-
-      const isConnected = (integrations ?? []).length > 0;
+      const fbConnection = await getFacebookConnection(orgId);
+      const isConnected = fbConnection?.status === 'connected';
       setConnected(isConnected);
 
       if (isConnected) {
-        let query = supabase
+        const { data } = await supabase
           .from('conversations')
           .select('id, channel, customer_name, last_message_preview, last_message_at, unread_count')
-          .eq('organization_id', organizationId)
+          .eq('organization_id', orgId)
+          .eq('channel', 'facebook_messenger')
           .order('last_message_at', { ascending: false });
 
-        if (activeTab !== 'all') {
-          query = query.eq('channel', activeTab);
-        }
-
-        const { data } = await query;
         setConversations((data ?? []) as Conversation[]);
       }
 
@@ -117,7 +83,7 @@ export function MessagesScreen() {
     }
 
     load();
-  }, [organizationId, activeTab]);
+  }, [organizationId]);
 
   const totalUnread = conversations.reduce((n, c) => n + (c.unread_count ?? 0), 0);
 
@@ -164,20 +130,15 @@ export function MessagesScreen() {
           custom={1} variants={fadeUp} initial="hidden" animate="visible"
           className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] p-8 flex flex-col items-center text-center gap-4"
         >
-          <div className="flex -space-x-3">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center ring-4 ring-white">
-              <Instagram size={22} className="text-white" />
-            </div>
-            <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center ring-4 ring-white">
-              <Facebook size={22} className="text-white" />
-            </div>
+          <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center ring-4 ring-white">
+            <Facebook size={22} className="text-white" />
           </div>
           <div>
             <p className="text-[17px] font-semibold text-accent-dark mb-1">
-              Connect your channels
+              Connect your Facebook Page
             </p>
             <p className="text-[14px] text-olive leading-relaxed max-w-[260px]">
-              See all your Instagram DMs and Facebook Messenger conversations in one inbox.
+              See all your Facebook Messenger conversations in one inbox.
             </p>
           </div>
           <Link
@@ -190,93 +151,79 @@ export function MessagesScreen() {
         </motion.div>
       ) : (
         /* Connected — conversation list */
-        <>
-          {/* Channel tabs */}
-          <motion.div
-            custom={1} variants={fadeUp} initial="hidden" animate="visible"
-            className="flex gap-2 mb-4"
-          >
-            {TABS.map(({ label, value }) => (
-              <button
-                key={value}
-                onClick={() => setActiveTab(value)}
-                className={`shrink-0 px-4 h-9 rounded-full text-sm font-semibold transition-colors duration-150 ${
-                  activeTab === value
-                    ? 'bg-accent-dark text-white shadow-control'
-                    : 'bg-white text-olive border border-platinum/70 hover:border-accent-dark/30'
-                }`}
+        <motion.div
+          custom={1} variants={fadeUp} initial="hidden" animate="visible"
+          className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
+        >
+          {conversations.length === 0 ? (
+            <div className="py-16 flex flex-col items-center gap-2">
+              <p className="text-sm text-olive">No conversations yet.</p>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                className="divide-y divide-platinum/60"
+                variants={listContainer} initial="hidden" animate="visible"
               >
-                {label}
-              </button>
-            ))}
-          </motion.div>
+                {conversations.map((convo) => (
+                  <motion.div
+                    key={convo.id} variants={listRow}
+                    whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
+                    className="flex items-center gap-3.5 px-5 py-4 cursor-default"
+                  >
+                    {/* Avatar + channel badge */}
+                    <div className="relative shrink-0">
+                      <div className="w-11 h-11 rounded-full bg-accent-light/40 flex items-center justify-center text-[12px] font-bold text-accent-dark">
+                        {initials(convo.customer_name)}
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-white">
+                        <Facebook size={10} className="text-white" />
+                      </div>
+                    </div>
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: EASE }}
-              className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
-            >
-              {conversations.length === 0 ? (
-                <div className="py-16 flex flex-col items-center gap-2">
-                  <p className="text-sm text-olive">No conversations yet.</p>
-                </div>
-              ) : (
-                <motion.div
-                  className="divide-y divide-platinum/60"
-                  variants={listContainer} initial="hidden" animate="visible"
-                >
-                  {conversations.map((convo) => {
-                    const ChannelIcon = CHANNEL_ICON[convo.channel];
-                    return (
-                      <motion.div
-                        key={convo.id} variants={listRow}
-                        whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
-                        className="flex items-center gap-3.5 px-5 py-4 cursor-default"
-                      >
-                        {/* Avatar + channel badge */}
-                        <div className="relative shrink-0">
-                          <div className="w-11 h-11 rounded-full bg-accent-light/40 flex items-center justify-center text-[12px] font-bold text-accent-dark">
-                            {initials(convo.customer_name)}
-                          </div>
-                          <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full ${CHANNEL_COLOR[convo.channel]} flex items-center justify-center ring-2 ring-white`}>
-                            <ChannelIcon size={10} className="text-white" />
-                          </div>
-                        </div>
+                    {/* Content */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                        <p className={`text-[15px] truncate ${convo.unread_count > 0 ? 'font-bold text-accent-dark' : 'font-semibold text-accent-dark'}`}>
+                          {convo.customer_name}
+                        </p>
+                        <span className="text-[12px] text-olive shrink-0">
+                          {timeAgo(convo.last_message_at)}
+                        </span>
+                      </div>
+                      <p className={`text-[13px] truncate ${convo.unread_count > 0 ? 'text-accent-dark font-medium' : 'text-olive'}`}>
+                        {convo.last_message_preview}
+                      </p>
+                    </div>
 
-                        {/* Content */}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                            <p className={`text-[15px] truncate ${convo.unread_count > 0 ? 'font-bold text-accent-dark' : 'font-semibold text-accent-dark'}`}>
-                              {convo.customer_name}
-                            </p>
-                            <span className="text-[12px] text-olive shrink-0">
-                              {timeAgo(convo.last_message_at)}
-                            </span>
-                          </div>
-                          <p className={`text-[13px] truncate ${convo.unread_count > 0 ? 'text-accent-dark font-medium' : 'text-olive'}`}>
-                            {convo.last_message_preview}
-                          </p>
-                        </div>
-
-                        {/* Unread badge */}
-                        {convo.unread_count > 0 && (
-                          <div className="w-5 h-5 rounded-full bg-accent-dark flex items-center justify-center shrink-0">
-                            <span className="text-[10px] font-bold text-white">{convo.unread_count}</span>
-                          </div>
-                        )}
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </>
+                    {/* Unread badge */}
+                    {convo.unread_count > 0 && (
+                      <div className="w-5 h-5 rounded-full bg-accent-dark flex items-center justify-center shrink-0">
+                        <span className="text-[10px] font-bold text-white">{convo.unread_count}</span>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          )}
+        </motion.div>
       )}
     </ScreenShell>
   );
+}
+
+function initials(name: string) {
+  const p = (name ?? '').trim().split(/\s+/);
+  return ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase();
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 }

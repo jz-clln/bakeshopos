@@ -1,5 +1,6 @@
 // File: app/src/screens/SettingsScreen.tsx
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Instagram,
@@ -13,6 +14,7 @@ import {
 import { Link } from 'react-router-dom';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
+import { getFacebookConnection, startFacebookConnect, type FacebookConnection } from '../api/facebook';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -25,13 +27,46 @@ const fadeUp = {
 };
 
 export function SettingsScreen() {
-  const { signOut, role, session } = useAuth() as {
+  const { signOut, role, session, organizationId } = useAuth() as {
     signOut?: () => void;
     role?: string;
     session: { user?: { user_metadata?: { organization_name?: string } } } | null;
+    organizationId?: string;
   };
 
   const shopName = session?.user?.user_metadata?.organization_name?.trim() || 'Your Shop';
+
+  const [fbConnection, setFbConnection] = useState<FacebookConnection | null>(null);
+  const [loadingFb, setLoadingFb] = useState(true);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+
+    getFacebookConnection(organizationId).then((conn) => {
+      if (!cancelled) {
+        setFbConnection(conn);
+        setLoadingFb(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
+  function handleConnectFacebook() {
+    if (!organizationId) return;
+    startFacebookConnect(organizationId);
+  }
+
+  const fbDescription = loadingFb
+    ? 'Checking…'
+    : fbConnection?.status === 'connected'
+    ? `Connected — ${fbConnection.pageName}`
+    : fbConnection?.status === 'needs_reconnect'
+    ? 'Needs reconnecting'
+    : 'Not connected';
 
   return (
     <ScreenShell>
@@ -65,8 +100,18 @@ export function SettingsScreen() {
           Sales channels
         </p>
         <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
-          <SettingsRow icon={<Instagram size={17} className="text-accent-dark" />} label="Instagram" description="Not connected" />
-          <SettingsRow icon={<Facebook size={17} className="text-accent-dark" />} label="Facebook & Messenger" description="Not connected" />
+          <SettingsRow
+            icon={<Instagram size={17} className="text-accent-dark" />}
+            label="Instagram"
+            description="Coming soon"
+            disabled
+          />
+          <SettingsRow
+            icon={<Facebook size={17} className="text-accent-dark" />}
+            label="Facebook & Messenger"
+            description={fbDescription}
+            onClick={fbConnection?.status === 'connected' ? undefined : handleConnectFacebook}
+          />
         </div>
       </motion.section>
 
@@ -101,14 +146,22 @@ function SettingsRow({
   label,
   description,
   to,
+  onClick,
+  disabled,
 }: {
   icon: React.ReactNode;
   label: string;
   description?: string;
   to?: string;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   const inner = (
-    <div className="flex items-center gap-4 px-5 min-h-[56px] py-3 transition-colors duration-150 active:bg-platinum/30">
+    <div
+      className={`flex items-center gap-4 px-5 min-h-[56px] py-3 transition-colors duration-150 ${
+        disabled ? 'opacity-45' : 'active:bg-platinum/30'
+      }`}
+    >
       <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
         {icon}
       </div>
@@ -116,9 +169,21 @@ function SettingsRow({
         <p className="text-[15px] font-medium text-accent-dark">{label}</p>
         {description && <p className="text-[13px] text-olive">{description}</p>}
       </div>
-      <ChevronRight size={15} className="text-olive/50 shrink-0" />
+      {!disabled && <ChevronRight size={15} className="text-olive/50 shrink-0" />}
     </div>
   );
 
-  return to ? <Link to={to}>{inner}</Link> : <button className="w-full text-left">{inner}</button>;
+  if (disabled) {
+    return <div aria-disabled="true">{inner}</div>;
+  }
+
+  if (to) {
+    return <Link to={to}>{inner}</Link>;
+  }
+
+  return (
+    <button className="w-full text-left" onClick={onClick}>
+      {inner}
+    </button>
+  );
 }

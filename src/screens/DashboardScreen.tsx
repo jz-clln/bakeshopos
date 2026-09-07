@@ -154,7 +154,7 @@ export function DashboardScreen() {
         <div>
           <p className="text-[11px] font-semibold tracking-widest text-olive uppercase mb-1">Today</p>
           <h1 className="font-display text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark leading-tight">
-            {greeting} 👋
+          {greeting}, {shopName} 👋
           </h1>
         </div>
         <Link
