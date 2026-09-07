@@ -1,9 +1,8 @@
 // File: app/src/api/facebook.ts
 //
-// Frontend never sees page_access_token. This file only ever reads
-// page_id / page_name / status, and only ever *starts* the OAuth
-// redirect — the actual token exchange happens server-side in the
-// Edge Function built in 3B.
+// Frontend never sees page_access_token, and never sees the Facebook
+// App ID either — it just asks the backend to start a connection and
+// redirects to whatever URL comes back.
 
 import { supabase } from '../lib/supabase';
 
@@ -41,44 +40,20 @@ export async function getFacebookConnection(
   };
 }
 
-const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
-const FACEBOOK_OAUTH_REDIRECT_URI = import.meta.env.VITE_FACEBOOK_OAUTH_REDIRECT_URI;
-
-// pages_show_list: list the Pages the owner manages, so they can pick one
-// pages_messaging: send/receive Messenger messages as the Page
-// pages_manage_metadata: required by Meta to subscribe the Page to webhooks
-const FACEBOOK_OAUTH_SCOPES = [
-  'pages_show_list',
-  'pages_messaging',
-  'pages_manage_metadata',
-].join(',');
-
 /**
- * Redirects the owner to Facebook's own login/permission screen.
- * Nothing here touches a token — Facebook redirects back to our
- * Edge Function callback URL with a short-lived code, and that
- * function (built in 3B) does the actual exchange.
- *
- * SECURITY NOTE (to finish in 3B): `state` is currently just the raw
- * organization ID so the UI has something to send today. Before 3B
- * ships, this needs to become a short-lived, signed/opaque value that
- * the callback function verifies — otherwise the state param could be
- * tampered with in the browser. Flagging so it isn't forgotten.
+ * Starts the Facebook OAuth flow. Asks the facebook-oauth-start Edge
+ * Function to mint a one-time state token and build the full OAuth
+ * URL server-side, then redirects the browser to it.
  */
-export function startFacebookConnect(organizationId: string) {
-  if (!FACEBOOK_APP_ID || !FACEBOOK_OAUTH_REDIRECT_URI) {
-    throw new Error(
-      'Missing VITE_FACEBOOK_APP_ID or VITE_FACEBOOK_OAUTH_REDIRECT_URI. Check your app/.env file.'
-    );
-  }
-
-  const params = new URLSearchParams({
-    client_id: FACEBOOK_APP_ID,
-    redirect_uri: FACEBOOK_OAUTH_REDIRECT_URI,
-    scope: FACEBOOK_OAUTH_SCOPES,
-    response_type: 'code',
-    state: organizationId,
+export async function startFacebookConnect(organizationId: string) {
+  const { data, error } = await supabase.functions.invoke('facebook-oauth-start', {
+    body: { organizationId },
   });
 
-  window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`;
+  if (error || !data?.oauthUrl) {
+    console.error('Failed to start Facebook connect:', error);
+    throw new Error('Could not start Facebook connection. Please try again.');
+  }
+
+  window.location.href = data.oauthUrl;
 }

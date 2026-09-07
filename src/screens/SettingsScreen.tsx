@@ -38,6 +38,7 @@ export function SettingsScreen() {
 
   const [fbConnection, setFbConnection] = useState<FacebookConnection | null>(null);
   const [loadingFb, setLoadingFb] = useState(true);
+  const [fbError, setFbError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -55,9 +56,18 @@ export function SettingsScreen() {
     };
   }, [organizationId]);
 
-  function handleConnectFacebook() {
+  async function handleConnectFacebook() {
     if (!organizationId) return;
-    startFacebookConnect(organizationId);
+    setFbError(null);
+    try {
+      await startFacebookConnect(organizationId);
+    } catch (err) {
+      console.error(err);
+      // TODO: replace with a real toast/snackbar component once one
+      // exists in the codebase — for now this renders as inline text
+      // under the Facebook row (see SettingsRow usage below).
+      setFbError('Could not start Facebook connection. Please try again.');
+    }
   }
 
   const fbDescription = loadingFb
@@ -109,7 +119,7 @@ export function SettingsScreen() {
           <SettingsRow
             icon={<Facebook size={17} className="text-accent-dark" />}
             label="Facebook & Messenger"
-            description={fbDescription}
+            description={fbError ?? fbDescription}
             onClick={fbConnection?.status === 'connected' ? undefined : handleConnectFacebook}
           />
         </div>

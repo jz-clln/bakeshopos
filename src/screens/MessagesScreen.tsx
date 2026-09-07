@@ -56,9 +56,7 @@ export function MessagesScreen() {
     if (!organizationId) return;
 
     // Captured into its own const so TypeScript can trust it's a
-    // string inside the nested async function below — narrowing on
-    // the destructured `organizationId` from useAuth() doesn't carry
-    // into a function defined later in the same closure.
+    // string inside the nested async function below.
     const orgId = organizationId;
 
     async function load() {
