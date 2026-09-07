@@ -1,13 +1,13 @@
 // File: app/src/screens/DashboardScreen.tsx
-// Requires: framer-motion  →  pnpm add framer-motion
-//
-// No NavBar — the Dashboard is a tab destination, not a drill-down.
-// The TabBar (mobile) and Sidebar (desktop) already make the context clear.
 
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, ClipboardList, Clock, MessageCircle, ArrowUpRight } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
+import { useAuth } from '../lib/auth-context';
+import { supabase } from '../lib/supabase';
+import { formatPrice } from '../lib/currency';
 
 /* ─── Motion ─── */
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -30,40 +30,119 @@ const listRow = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.26, ease: EASE } },
 };
 
-/* ─── Data ─── */
-type OrderStatus = 'New' | 'Preparing' | 'Ready';
+/* ─── Types ─── */
+type OrderStatus = 'new' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
-interface RecentOrder {
+interface OrderRow {
   id: string;
-  customer: string;
-  item: string;
-  price: string;
+  customer_name: string;
+  summary: string;
+  total_amount: number;
   status: OrderStatus;
+  created_at: string;
 }
 
-const RECENT_ORDERS: RecentOrder[] = [
-  { id: '1', customer: 'Maria Santos',   item: '2x Choco Overload, 1x Ube Cake',  price: '₱1,450', status: 'New'      },
-  { id: '2', customer: 'Jerome Cruz',    item: '1x Custom Birthday Cake',          price: '₱2,200', status: 'Preparing' },
-  { id: '3', customer: 'Angel Reyes',    item: '3x Cinnamon Rolls',                price: '₱540',   status: 'Preparing' },
-  { id: '4', customer: 'Kim Villanueva', item: '1x Red Velvet, 6x Cupcakes',       price: '₱1,180', status: 'Ready'    },
-];
+interface DashboardStats {
+  totalOrders: number;
+  revenueToday: number;
+  pendingPickups: number;
+  unreadMessages: number;
+  completedOrders: number;
+}
+
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  new:       'New',
+  preparing: 'Preparing',
+  ready:     'Ready',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  New:       'bg-accent-light/50 text-accent-dark',
-  Preparing: 'bg-platinum text-olive',
-  Ready:     'bg-accent-dark text-white',
+  new:       'bg-accent-light/50 text-accent-dark',
+  preparing: 'bg-platinum text-olive',
+  ready:     'bg-accent-dark text-white',
+  completed: 'bg-green-50 text-green-700',
+  cancelled: 'bg-red-50 text-red-600',
 };
 
 function initials(name: string) {
-  const p = name.trim().split(/\s+/);
+  const p = (name ?? '').trim().split(/\s+/);
   return ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase();
+}
+
+function todayRange() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return { start: start.toISOString(), end: end.toISOString() };
 }
 
 /* ─── Screen ─── */
 export function DashboardScreen() {
-  const completed = 8;
-  const total = 12;
-  const pct = Math.round((completed / total) * 100);
+  const { organizationId, session } = useAuth();
+
+  const [stats, setStats] = useState<DashboardStats>({
+    totalOrders: 0,
+    revenueToday: 0,
+    pendingPickups: 0,
+    unreadMessages: 0,
+    completedOrders: 0,
+  });
+  const [recentOrders, setRecentOrders] = useState<OrderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const shopName =
+    session?.user?.user_metadata?.organization_name?.trim() || 'there';
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  useEffect(() => {
+    if (!organizationId) return;
+
+    async function load() {
+      setLoading(true);
+      const { start, end } = todayRange();
+
+      // All today's orders
+      const { data: todayOrders } = await supabase
+        .from('orders')
+        .select('id, customer_name, summary, total_amount, status, created_at')
+        .eq('organization_id', organizationId)
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .order('created_at', { ascending: false });
+
+      const orders = (todayOrders ?? []) as OrderRow[];
+
+      const revenueToday = orders
+        .filter((o) => o.status !== 'cancelled')
+        .reduce((sum, o) => sum + (o.total_amount ?? 0), 0);
+
+      const pendingPickups = orders.filter((o) => o.status === 'ready').length;
+      const completedOrders = orders.filter((o) => o.status === 'completed').length;
+
+      setStats({
+        totalOrders: orders.length,
+        revenueToday,
+        pendingPickups,
+        unreadMessages: 0, // populated once messaging integration is live
+        completedOrders,
+      });
+
+      setRecentOrders(orders.slice(0, 4));
+      setLoading(false);
+    }
+
+    load();
+  }, [organizationId]);
+
+  const pct =
+    stats.totalOrders > 0
+      ? Math.round((stats.completedOrders / stats.totalOrders) * 100)
+      : 0;
 
   return (
     <ScreenShell>
@@ -75,16 +154,19 @@ export function DashboardScreen() {
         <div>
           <p className="text-[11px] font-semibold tracking-widest text-olive uppercase mb-1">Today</p>
           <h1 className="font-display text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark leading-tight">
-            Good morning 👋
+            {greeting} 👋
           </h1>
         </div>
-        <button className="hidden sm:inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] shrink-0">
+        <Link
+          to="/orders/new"
+          className="hidden sm:inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] shrink-0"
+        >
           <Plus size={15} strokeWidth={2.5} />
           New order
-        </button>
+        </Link>
       </motion.div>
 
-      {/* Hero + stats grid */}
+      {/* Hero + stats */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-4 mb-4">
 
         {/* Hero revenue card */}
@@ -94,10 +176,12 @@ export function DashboardScreen() {
         >
           <div className="pointer-events-none absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5" />
           <div className="pointer-events-none absolute -bottom-14 -right-4 w-64 h-64 rounded-full bg-white/[0.03]" />
+
           <p className="text-white/60 text-sm font-medium mb-1">Revenue today</p>
           <p className="font-display text-4xl md:text-5xl font-bold text-white tracking-tight mb-5">
-            ₱4,850
+            {loading ? '—' : formatPrice(stats.revenueToday)}
           </p>
+
           <div className="h-[3px] w-full rounded-full bg-white/15 overflow-hidden mb-1.5">
             <motion.div
               className="h-full rounded-full bg-white"
@@ -107,33 +191,38 @@ export function DashboardScreen() {
             />
           </div>
           <p className="text-white/50 text-xs font-medium">
-            {completed} of {total} orders fulfilled · {pct}% done
+            {loading
+              ? 'Loading…'
+              : `${stats.completedOrders} of ${stats.totalOrders} orders fulfilled · ${pct}% done`}
           </p>
         </motion.div>
 
         {/* Supporting stats */}
         <div className="lg:col-span-2 grid grid-cols-3 lg:grid-cols-1 gap-3">
           {[
-            { label: 'Orders',   value: '12', icon: ClipboardList, custom: 2 },
-            { label: 'Pending',  value: '5',  icon: Clock,         custom: 3 },
-            { label: 'Messages', value: '3',  icon: MessageCircle, custom: 4, to: '/messages' },
-          ].map(({ label, value, icon: Icon, custom, to }) => (
-            <motion.div
-              key={label}
-              custom={custom} variants={fadeUp} initial="hidden" animate="visible"
-              whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
-              whileTap={{ scale: 0.97 }}
-              className="bg-white rounded-[16px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] flex flex-col justify-between cursor-default"
-            >
-              <div className="w-7 h-7 rounded-full bg-platinum flex items-center justify-center mb-3">
-                <Icon size={13} className="text-accent-dark" strokeWidth={2} />
-              </div>
-              <div>
-                <p className="text-xl font-bold text-accent-dark leading-none mb-0.5">{value}</p>
-                <p className="text-xs text-olive">{label}</p>
-              </div>
-            </motion.div>
-          ))}
+            { label: 'Orders',   value: loading ? '—' : String(stats.totalOrders),    icon: ClipboardList, custom: 2 },
+            { label: 'Pending',  value: loading ? '—' : String(stats.pendingPickups), icon: Clock,         custom: 3 },
+            { label: 'Messages', value: loading ? '—' : String(stats.unreadMessages), icon: MessageCircle, custom: 4, to: '/messages' },
+          ].map(({ label, value, icon: Icon, custom, to }) => {
+            const inner = (
+              <motion.div
+                key={label}
+                custom={custom} variants={fadeUp} initial="hidden" animate="visible"
+                whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
+                whileTap={{ scale: 0.97 }}
+                className="bg-white rounded-[16px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] flex flex-col justify-between cursor-default"
+              >
+                <div className="w-7 h-7 rounded-full bg-platinum flex items-center justify-center mb-3">
+                  <Icon size={13} className="text-accent-dark" strokeWidth={2} />
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-accent-dark leading-none mb-0.5">{value}</p>
+                  <p className="text-xs text-olive">{label}</p>
+                </div>
+              </motion.div>
+            );
+            return to ? <Link key={label} to={to}>{inner}</Link> : inner;
+          })}
         </div>
       </div>
 
@@ -143,7 +232,9 @@ export function DashboardScreen() {
         className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
       >
         <div className="flex items-center justify-between px-5 md:px-6 pt-5 pb-3">
-          <h2 className="font-display text-base font-semibold text-accent-dark tracking-tight">Recent orders</h2>
+          <h2 className="font-display text-base font-semibold text-accent-dark tracking-tight">
+            Recent orders
+          </h2>
           <Link
             to="/orders"
             className="inline-flex items-center gap-0.5 text-sm font-semibold text-accent transition-opacity duration-150 hover:opacity-70"
@@ -152,32 +243,55 @@ export function DashboardScreen() {
           </Link>
         </div>
 
-        <motion.div
-          className="divide-y divide-platinum/60"
-          variants={listContainer} initial="hidden" animate="visible"
-        >
-          {RECENT_ORDERS.map((order) => (
-            <motion.div
-              key={order.id} variants={listRow}
-              whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
-              className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 cursor-default"
-            >
-              <div className="w-9 h-9 rounded-full bg-accent-light/40 flex items-center justify-center text-[11px] font-bold text-accent-dark shrink-0 tracking-wide">
-                {initials(order.customer)}
+        {loading ? (
+          <div className="divide-y divide-platinum/60">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 animate-pulse">
+                <div className="w-9 h-9 rounded-full bg-platinum/80 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-platinum/80 rounded w-1/3" />
+                  <div className="h-3 bg-platinum/60 rounded w-2/3" />
+                </div>
+                <div className="h-3 bg-platinum/60 rounded w-16 shrink-0" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-semibold text-accent-dark truncate leading-snug">{order.customer}</p>
-                <p className="text-[13px] text-olive truncate">{order.item}</p>
-              </div>
-              <div className="flex flex-col items-end gap-1.5 shrink-0">
-                <span className="text-[15px] font-bold text-accent-dark tabular-nums">{order.price}</span>
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[order.status]}`}>
-                  {order.status}
-                </span>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
+            ))}
+          </div>
+        ) : recentOrders.length === 0 ? (
+          <div className="py-12 flex flex-col items-center gap-2">
+            <p className="text-sm text-olive">No orders yet today.</p>
+          </div>
+        ) : (
+          <motion.div
+            className="divide-y divide-platinum/60"
+            variants={listContainer} initial="hidden" animate="visible"
+          >
+            {recentOrders.map((order) => (
+              <motion.div
+                key={order.id} variants={listRow}
+                whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
+                className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 cursor-default"
+              >
+                <div className="w-9 h-9 rounded-full bg-accent-light/40 flex items-center justify-center text-[11px] font-bold text-accent-dark shrink-0 tracking-wide">
+                  {initials(order.customer_name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-semibold text-accent-dark truncate leading-snug">
+                    {order.customer_name}
+                  </p>
+                  <p className="text-[13px] text-olive truncate">{order.summary}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <span className="text-[15px] font-bold text-accent-dark tabular-nums">
+                    {formatPrice(order.total_amount)}
+                  </span>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[order.status]}`}>
+                    {STATUS_LABEL[order.status]}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
       </motion.div>
 
       {/* Mobile FAB */}

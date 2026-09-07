@@ -7,10 +7,7 @@ import { useAuth } from '../../lib/auth-context';
 import { NAV_ITEMS } from '../../config/navigation';
 
 export function Sidebar() {
-  const { session, signOut } = useAuth() as {
-    session: { user?: { user_metadata?: { organization_name?: string } } } | null;
-    signOut?: () => void;
-  };
+  const { session } = useAuth();
 
   const shopName = session?.user?.user_metadata?.organization_name?.trim() || 'Your Shop';
   const shopInitial = shopName.charAt(0).toUpperCase();
@@ -73,7 +70,7 @@ export function Sidebar() {
       </nav>
 
       {/* Shop identity */}
-      <div className="px-3 pb-6 pt-4 border-t border-platinum/70 space-y-1">
+      <div className="px-3 pb-6 pt-4 border-t border-platinum/70">
         <div className="flex items-center gap-3 px-3 py-2 rounded-[12px]">
           <div className="w-8 h-8 rounded-full bg-accent-light/50 flex items-center justify-center text-xs font-bold text-accent-dark shrink-0">
             {shopInitial}
