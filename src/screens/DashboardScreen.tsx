@@ -1,5 +1,8 @@
 // File: app/src/screens/DashboardScreen.tsx
 // Requires: framer-motion  →  pnpm add framer-motion
+//
+// No NavBar — the Dashboard is a tab destination, not a drill-down.
+// The TabBar (mobile) and Sidebar (desktop) already make the context clear.
 
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -12,8 +15,7 @@ const EASE = [0.23, 1, 0.32, 1] as const;
 const fadeUp = {
   hidden: { opacity: 0, y: 10 },
   visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
+    opacity: 1, y: 0,
     transition: { duration: 0.28, ease: EASE, delay: i * 0.06 },
   }),
 };
@@ -40,16 +42,16 @@ interface RecentOrder {
 }
 
 const RECENT_ORDERS: RecentOrder[] = [
-  { id: '1', customer: 'Maria Santos', item: '2x Choco Overload, 1x Ube Cake', price: '₱1,450', status: 'New' },
-  { id: '2', customer: 'Jerome Cruz', item: '1x Custom Birthday Cake', price: '₱2,200', status: 'Preparing' },
-  { id: '3', customer: 'Angel Reyes', item: '3x Cinnamon Rolls', price: '₱540', status: 'Preparing' },
-  { id: '4', customer: 'Kim Villanueva', item: '1x Red Velvet, 6x Cupcakes', price: '₱1,180', status: 'Ready' },
+  { id: '1', customer: 'Maria Santos',   item: '2x Choco Overload, 1x Ube Cake',  price: '₱1,450', status: 'New'      },
+  { id: '2', customer: 'Jerome Cruz',    item: '1x Custom Birthday Cake',          price: '₱2,200', status: 'Preparing' },
+  { id: '3', customer: 'Angel Reyes',    item: '3x Cinnamon Rolls',                price: '₱540',   status: 'Preparing' },
+  { id: '4', customer: 'Kim Villanueva', item: '1x Red Velvet, 6x Cupcakes',       price: '₱1,180', status: 'Ready'    },
 ];
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  New: 'bg-accent-light/50 text-accent-dark',
+  New:       'bg-accent-light/50 text-accent-dark',
   Preparing: 'bg-platinum text-olive',
-  Ready: 'bg-accent-dark text-white',
+  Ready:     'bg-accent-dark text-white',
 };
 
 function initials(name: string) {
@@ -82,10 +84,10 @@ export function DashboardScreen() {
         </button>
       </motion.div>
 
-      {/* Top section — hero + stats side by side on desktop */}
+      {/* Hero + stats grid */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-4 mb-4">
 
-        {/* Hero revenue card — takes 3/5 on desktop */}
+        {/* Hero revenue card */}
         <motion.div
           custom={1} variants={fadeUp} initial="hidden" animate="visible"
           className="lg:col-span-3 relative overflow-hidden rounded-[20px] bg-accent-dark p-6 md:p-7 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
@@ -109,13 +111,13 @@ export function DashboardScreen() {
           </p>
         </motion.div>
 
-        {/* Three supporting stats — stack vertically on desktop (2/5), row on mobile */}
+        {/* Supporting stats */}
         <div className="lg:col-span-2 grid grid-cols-3 lg:grid-cols-1 gap-3">
           {[
-            { label: 'Orders', value: '12', icon: ClipboardList, custom: 2 },
-            { label: 'Pending', value: '5',  icon: Clock,          custom: 3 },
-            { label: 'Messages', value: '3', icon: MessageCircle,  custom: 4 },
-          ].map(({ label, value, icon: Icon, custom }) => (
+            { label: 'Orders',   value: '12', icon: ClipboardList, custom: 2 },
+            { label: 'Pending',  value: '5',  icon: Clock,         custom: 3 },
+            { label: 'Messages', value: '3',  icon: MessageCircle, custom: 4, to: '/messages' },
+          ].map(({ label, value, icon: Icon, custom, to }) => (
             <motion.div
               key={label}
               custom={custom} variants={fadeUp} initial="hidden" animate="visible"
@@ -142,14 +144,22 @@ export function DashboardScreen() {
       >
         <div className="flex items-center justify-between px-5 md:px-6 pt-5 pb-3">
           <h2 className="font-display text-base font-semibold text-accent-dark tracking-tight">Recent orders</h2>
-          <Link to="/orders" className="inline-flex items-center gap-0.5 text-sm font-semibold text-accent transition-opacity duration-150 hover:opacity-70">
+          <Link
+            to="/orders"
+            className="inline-flex items-center gap-0.5 text-sm font-semibold text-accent transition-opacity duration-150 hover:opacity-70"
+          >
             View all <ArrowUpRight size={14} strokeWidth={2.5} />
           </Link>
         </div>
-        <motion.div className="divide-y divide-platinum/60" variants={listContainer} initial="hidden" animate="visible">
+
+        <motion.div
+          className="divide-y divide-platinum/60"
+          variants={listContainer} initial="hidden" animate="visible"
+        >
           {RECENT_ORDERS.map((order) => (
             <motion.div
-              key={order.id} variants={listRow} whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
+              key={order.id} variants={listRow}
+              whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
               className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 cursor-default"
             >
               <div className="w-9 h-9 rounded-full bg-accent-light/40 flex items-center justify-center text-[11px] font-bold text-accent-dark shrink-0 tracking-wide">
