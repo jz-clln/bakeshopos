@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Trash2 } from 'lucide-react';
+import { ChevronLeft, Trash2, Sparkles, Info } from 'lucide-react';
 import { NavBar } from '../components/layout/NavBar';
 import { VariantsSection } from '../components/catalog/VariantsSection';
 import { OptionsSection } from '../components/catalog/OptionsSection';
@@ -24,6 +24,16 @@ const fadeUp = {
     transition: { duration: 0.26, ease: EASE, delay: i * 0.07 },
   }),
 };
+
+const AI_PLACEHOLDER = `Help your AI assistant answer customer questions accurately. For example:
+
+• What flavors or fillings are available?
+• How far in advance should customers order?
+• Does it need refrigeration after pickup?
+• Any allergens (nuts, dairy, gluten)?
+• What occasions is this best for?
+
+The more you write here, the better your assistant can answer DMs on Facebook and Instagram.`;
 
 export function ProductEditorScreen() {
   const { productId: routeProductId } = useParams<{ productId: string }>();
@@ -59,7 +69,7 @@ export function ProductEditorScreen() {
       <div className="min-h-[100dvh] flex items-center justify-center">
         <div className="space-y-3 w-full max-w-sm px-5 animate-pulse">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-14 rounded-[16px] bg-platinum/60" />
+            <div key={i} className="h-14 rounded-[20px] bg-platinum/60" />
           ))}
         </div>
       </div>
@@ -104,6 +114,7 @@ export function ProductEditorScreen() {
   }
 
   const saving = createProduct.isPending || updateProduct.isPending;
+  const descLength = description.length;
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-[#FAFAF8]">
@@ -134,87 +145,135 @@ export function ProductEditorScreen() {
         className="flex-1 px-5 md:px-10 max-w-5xl mx-auto w-full space-y-5"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
       >
-        {/* Details section */}
+
+        {/* ── Basic details ── */}
         <motion.section custom={0} variants={fadeUp} initial="hidden" animate="visible">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
-            Details
+            Product details
           </p>
           <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
-            <FormRow label="Name">
+            <FormRow label="Product name" hint="What customers call this item">
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Chocolate Cake"
+                placeholder="e.g. Chocolate Overload Cake"
                 className="w-full text-[15px] text-accent-dark placeholder:text-olive/50 bg-transparent focus:outline-none"
               />
             </FormRow>
-            <FormRow label="Category">
+            <FormRow label="Category" hint="Groups products in your catalog">
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 className="w-full text-[15px] text-accent-dark bg-transparent focus:outline-none appearance-none"
               >
-                <option value="">None</option>
+                <option value="">Uncategorized</option>
                 {(categories ?? []).map((cat) => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
             </FormRow>
-            <FormRow label="SKU">
+            <FormRow label="Order deadline" hint="Days before pickup the order must be placed">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={leadTimeDays}
+                  onChange={(e) => setLeadTimeDays(e.target.value)}
+                  className="w-16 text-[15px] text-accent-dark bg-transparent focus:outline-none"
+                />
+                <span className="text-[14px] text-olive">
+                  {Number(leadTimeDays) === 1 ? 'day' : 'days'} in advance
+                </span>
+              </div>
+            </FormRow>
+            <FormRow label="Minimum order" hint="Least number of pieces a customer can order">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={minQuantity}
+                  onChange={(e) => setMinQuantity(e.target.value)}
+                  className="w-16 text-[15px] text-accent-dark bg-transparent focus:outline-none"
+                />
+                <span className="text-[14px] text-olive">
+                  {Number(minQuantity) === 1 ? 'piece' : 'pieces'} minimum
+                </span>
+              </div>
+            </FormRow>
+            <FormRow label="Internal code" hint="Your own reference code — customers won't see this">
               <input
                 type="text"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
-                placeholder="Optional"
+                placeholder="e.g. CHOC-001 (optional)"
                 className="w-full text-[15px] text-accent-dark placeholder:text-olive/50 bg-transparent focus:outline-none"
-              />
-            </FormRow>
-            <FormRow label="Lead time (days)">
-              <input
-                type="number"
-                inputMode="numeric"
-                value={leadTimeDays}
-                onChange={(e) => setLeadTimeDays(e.target.value)}
-                className="w-full text-[15px] text-accent-dark bg-transparent focus:outline-none"
-              />
-            </FormRow>
-            <FormRow label="Min. quantity">
-              <input
-                type="number"
-                inputMode="numeric"
-                value={minQuantity}
-                onChange={(e) => setMinQuantity(e.target.value)}
-                className="w-full text-[15px] text-accent-dark bg-transparent focus:outline-none"
               />
             </FormRow>
           </div>
         </motion.section>
 
-        {/* Description */}
+        {/* ── AI assistant context ── */}
         <motion.section custom={1} variants={fadeUp} initial="hidden" animate="visible">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
-            Description
-          </p>
+          {/* Section header */}
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <Sparkles size={13} className="text-accent-dark" strokeWidth={2} />
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-olive">
+              AI assistant context
+            </p>
+          </div>
+
+          {/* Explainer banner */}
+          <div className="flex gap-3 bg-accent-dark/[0.06] rounded-[16px] px-4 py-3 mb-3">
+            <Info size={16} className="text-accent-dark shrink-0 mt-0.5" strokeWidth={2} />
+            <p className="text-[13px] text-accent-dark leading-relaxed">
+              Your AI chatbot reads this to answer customer questions on{' '}
+              <span className="font-semibold">Facebook</span> and{' '}
+              <span className="font-semibold">Instagram</span>. Write it like
+              you're briefing a new staff member on this product.
+            </p>
+          </div>
+
+          {/* Textarea */}
           <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              placeholder="Optional — describe this product for your team or customers."
-              className="w-full text-[15px] text-accent-dark placeholder:text-olive/50 bg-transparent focus:outline-none resize-none leading-relaxed"
+              rows={8}
+              placeholder={AI_PLACEHOLDER}
+              className="w-full text-[15px] text-accent-dark placeholder:text-olive/40 bg-transparent focus:outline-none resize-none leading-relaxed"
             />
+            {/* Character counter */}
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-platinum/60">
+              <p className="text-[12px] text-olive">
+                {descLength === 0
+                  ? 'No context yet — your assistant will give generic replies.'
+                  : descLength < 100
+                  ? 'Add more detail for better replies.'
+                  : descLength < 300
+                  ? 'Good start. More detail helps.'
+                  : '✓ Great context — your assistant can answer accurately.'}
+              </p>
+              <span className="text-[12px] text-olive tabular-nums shrink-0 ml-3">
+                {descLength} chars
+              </span>
+            </div>
           </div>
         </motion.section>
 
-        {/* Variants + Options (existing product only) */}
+        {/* ── Variants + Options (existing product only) ── */}
         {isNewProduct ? (
-          <motion.p
+          <motion.div
             custom={2} variants={fadeUp} initial="hidden" animate="visible"
-            className="text-sm text-olive px-1"
+            className="flex gap-3 bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4"
           >
-            Save the product first to add sizes and options.
-          </motion.p>
+            <Info size={16} className="text-olive shrink-0 mt-0.5" strokeWidth={2} />
+            <p className="text-[14px] text-olive leading-relaxed">
+              Save this product first, then you can add{' '}
+              <span className="font-medium text-accent-dark">sizes</span> and{' '}
+              <span className="font-medium text-accent-dark">options</span> (e.g. flavors, add-ons).
+            </p>
+          </motion.div>
         ) : (
           <>
             <motion.div custom={2} variants={fadeUp} initial="hidden" animate="visible">
@@ -223,8 +282,6 @@ export function ProductEditorScreen() {
             <motion.div custom={3} variants={fadeUp} initial="hidden" animate="visible">
               <OptionsSection productId={routeProductId!} options={product?.options ?? []} />
             </motion.div>
-
-            {/* Delete */}
             <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible">
               <button
                 onClick={handleDelete}
@@ -241,11 +298,23 @@ export function ProductEditorScreen() {
   );
 }
 
-function FormRow({ label, children }: { label: string; children: ReactNode }) {
+/* ── FormRow ── */
+function FormRow({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-4 px-5 min-h-[52px] py-3">
-      <label className="text-[15px] text-olive w-36 shrink-0">{label}</label>
-      <div className="flex-1 min-w-0">{children}</div>
+    <div className="flex items-start gap-4 px-5 min-h-[56px] py-3.5">
+      <div className="w-36 shrink-0 pt-0.5">
+        <p className="text-[15px] text-accent-dark font-medium leading-snug">{label}</p>
+        {hint && <p className="text-[12px] text-olive leading-snug mt-0.5">{hint}</p>}
+      </div>
+      <div className="flex-1 min-w-0 pt-0.5">{children}</div>
     </div>
   );
 }
