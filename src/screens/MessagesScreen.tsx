@@ -1,13 +1,13 @@
 // File: app/src/screens/MessagesScreen.tsx
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Facebook, ChevronRight, Settings } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
-import { supabase } from '../lib/supabase';
 import { getFacebookConnection } from '../api/facebook';
+import { fetchConversationList, type ConversationListItem } from '../api/messages';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -29,34 +29,15 @@ const listRow = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: EASE } },
 };
 
-/* ─── Types ───
-   Only 'facebook_messenger' is live. 'instagram' and 'manual' exist in
-   the conversations.channel enum but aren't surfaced in this UI yet —
-   Instagram is Phase 3, and there's no "manual" conversation creation
-   flow built yet either. */
-type Channel = 'facebook_messenger';
-
-interface Conversation {
-  id: string;
-  channel: Channel;
-  customer_name: string;
-  last_message_preview: string;
-  last_message_at: string;
-  unread_count: number;
-}
-
-/* ─── Screen ─── */
 export function MessagesScreen() {
   const { organizationId } = useAuth();
+  const navigate = useNavigate();
   const [connected, setConnected] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!organizationId) return;
-
-    // Captured into its own const so TypeScript can trust it's a
-    // string inside the nested async function below.
     const orgId = organizationId;
 
     async function load() {
@@ -67,14 +48,12 @@ export function MessagesScreen() {
       setConnected(isConnected);
 
       if (isConnected) {
-        const { data } = await supabase
-          .from('conversations')
-          .select('id, channel, customer_name, last_message_preview, last_message_at, unread_count')
-          .eq('organization_id', orgId)
-          .eq('channel', 'facebook_messenger')
-          .order('last_message_at', { ascending: false });
-
-        setConversations((data ?? []) as Conversation[]);
+        try {
+          const list = await fetchConversationList(orgId);
+          setConversations(list);
+        } catch (err) {
+          console.error('Failed to load conversations:', err);
+        }
       }
 
       setLoading(false);
@@ -83,7 +62,7 @@ export function MessagesScreen() {
     load();
   }, [organizationId]);
 
-  const totalUnread = conversations.reduce((n, c) => n + (c.unread_count ?? 0), 0);
+  const totalUnread = conversations.reduce((n, c) => n + c.unread_count, 0);
 
   return (
     <ScreenShell>
@@ -110,7 +89,6 @@ export function MessagesScreen() {
       </motion.div>
 
       {loading ? (
-        /* Skeleton */
         <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] divide-y divide-platinum/60">
           {[0, 1, 2].map((i) => (
             <div key={i} className="flex items-center gap-3.5 px-5 py-4 animate-pulse">
@@ -123,7 +101,6 @@ export function MessagesScreen() {
           ))}
         </div>
       ) : !connected ? (
-        /* Not connected */
         <motion.div
           custom={1} variants={fadeUp} initial="hidden" animate="visible"
           className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] p-8 flex flex-col items-center text-center gap-4"
@@ -148,7 +125,6 @@ export function MessagesScreen() {
           </Link>
         </motion.div>
       ) : (
-        /* Connected — conversation list */
         <motion.div
           custom={1} variants={fadeUp} initial="hidden" animate="visible"
           className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
@@ -167,9 +143,9 @@ export function MessagesScreen() {
                   <motion.div
                     key={convo.id} variants={listRow}
                     whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
-                    className="flex items-center gap-3.5 px-5 py-4 cursor-default"
+                    onClick={() => navigate(`/messages/${convo.id}`)}
+                    className="flex items-center gap-3.5 px-5 py-4 cursor-pointer"
                   >
-                    {/* Avatar + channel badge */}
                     <div className="relative shrink-0">
                       <div className="w-11 h-11 rounded-full bg-accent-light/40 flex items-center justify-center text-[12px] font-bold text-accent-dark">
                         {initials(convo.customer_name)}
@@ -179,22 +155,22 @@ export function MessagesScreen() {
                       </div>
                     </div>
 
-                    {/* Content */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2 mb-0.5">
                         <p className={`text-[15px] truncate ${convo.unread_count > 0 ? 'font-bold text-accent-dark' : 'font-semibold text-accent-dark'}`}>
                           {convo.customer_name}
                         </p>
-                        <span className="text-[12px] text-olive shrink-0">
-                          {timeAgo(convo.last_message_at)}
-                        </span>
+                        {convo.last_message_at && (
+                          <span className="text-[12px] text-olive shrink-0">
+                            {timeAgo(convo.last_message_at)}
+                          </span>
+                        )}
                       </div>
                       <p className={`text-[13px] truncate ${convo.unread_count > 0 ? 'text-accent-dark font-medium' : 'text-olive'}`}>
-                        {convo.last_message_preview}
+                        {convo.last_message_preview ?? 'No messages yet'}
                       </p>
                     </div>
 
-                    {/* Unread badge */}
                     {convo.unread_count > 0 && (
                       <div className="w-5 h-5 rounded-full bg-accent-dark flex items-center justify-center shrink-0">
                         <span className="text-[10px] font-bold text-white">{convo.unread_count}</span>

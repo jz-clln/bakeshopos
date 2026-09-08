@@ -2,6 +2,8 @@
 //
 // Single source of truth for tab navigation.
 // Consumed by Sidebar.tsx (desktop) and TabBar.tsx (mobile).
+// `badge` is no longer set here — AppShell computes it from real
+// unread data and overrides it before passing NAV_ITEMS down.
 
 import type { LucideIcon } from 'lucide-react';
 import { LayoutGrid, ShoppingBag, Cake, MessageSquare, Settings } from 'lucide-react';
@@ -18,6 +20,6 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/',         label: 'Dashboard', icon: LayoutGrid,    end: true  },
   { to: '/orders',   label: 'Orders',    icon: ShoppingBag,   end: false },
   { to: '/catalog',  label: 'Catalog',   icon: Cake,          end: false },
-  { to: '/messages', label: 'Messages',  icon: MessageSquare, end: false, badge: 3 },
+  { to: '/messages', label: 'Messages',  icon: MessageSquare, end: false },
   { to: '/settings', label: 'Settings',  icon: Settings,      end: false },
 ];

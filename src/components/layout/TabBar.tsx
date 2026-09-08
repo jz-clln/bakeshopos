@@ -3,15 +3,20 @@
 // Premium mobile tab bar.
 // - Frosted glass matching NavBar spec
 // - Active tab: Framer Motion layoutId spring pill behind the icon
-// - Badge dot for unread counts (e.g. Messages)
+// - Badge dot for unread counts (now driven by real data via props,
+//   not a hardcoded value in NAV_ITEMS)
 // - 44px minimum touch targets
 // - Safe-area aware bottom padding
 
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { NAV_ITEMS } from '../../config/navigation';
+import type { NavItem } from '../../config/navigation';
 
-export function TabBar() {
+interface TabBarProps {
+  navItems: NavItem[];
+}
+
+export function TabBar({ navItems }: TabBarProps) {
   const { pathname } = useLocation();
 
   return (
@@ -20,7 +25,7 @@ export function TabBar() {
       style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
     >
       <div className="flex">
-        {NAV_ITEMS.map(({ to, label, icon: Icon, end, badge }) => {
+        {navItems.map(({ to, label, icon: Icon, end, badge }) => {
           const isActive = end ? pathname === to : pathname.startsWith(to);
 
           return (

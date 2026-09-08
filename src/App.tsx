@@ -9,6 +9,7 @@ import { OrdersScreen } from './screens/OrdersScreen';
 import { CatalogScreen } from './screens/CatalogScreen';
 import { ProductEditorScreen } from './screens/ProductEditorScreen';
 import { MessagesScreen } from './screens/MessagesScreen';
+import { ConversationDetailScreen } from './screens/ConversationDetailScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/catalog/new"          element={<ProductEditorScreen />} />
           <Route path="/catalog/:productId"   element={<ProductEditorScreen />} />
           <Route path="/messages"   element={<MessagesScreen />}      />
+          <Route path="/messages/:conversationId" element={<ConversationDetailScreen />} />
           <Route path="/settings"   element={<SettingsScreen />}      />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

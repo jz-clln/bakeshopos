@@ -1,12 +1,16 @@
-// File: app/src/components/layout/Sidebar.tsx
+// File: app/src/components/layout/SideBar.tsx
 
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Cake } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
-import { NAV_ITEMS } from '../../config/navigation';
+import type { NavItem } from '../../config/navigation';
 
-export function Sidebar() {
+interface SidebarProps {
+  navItems: NavItem[];
+}
+
+export function Sidebar({ navItems }: SidebarProps) {
   const { session } = useAuth();
 
   const shopName = session?.user?.user_metadata?.organization_name?.trim() || 'Your Shop';
@@ -31,7 +35,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 space-y-0.5">
-        {NAV_ITEMS.map(({ to, label, icon: Icon, end, badge }) => (
+        {navItems.map(({ to, label, icon: Icon, end, badge }) => (
           <NavLink
             key={to}
             to={to}
