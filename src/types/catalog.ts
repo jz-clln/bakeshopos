@@ -68,3 +68,18 @@ export type ProductWithDetails = Product & {
   variants: ProductVariant[];
   options: (ProductOption & { values: ProductOptionValue[] })[];
 };
+
+// Mirrors the `order_status` Postgres enum exactly (confirmed via
+// SQL query against pg_enum — do not add/remove values here without
+// also updating order_status_transitions in the database).
+export type OrderStatus =
+  | 'inquiry'
+  | 'quote'
+  | 'pending_payment'
+  | 'confirmed'
+  | 'scheduled'
+  | 'in_production'
+  | 'ready'
+  | 'completed'
+  | 'cancelled'
+  | 'refunded';
