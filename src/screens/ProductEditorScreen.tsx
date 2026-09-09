@@ -8,6 +8,8 @@ import { NavBar } from '../components/layout/NavBar';
 import { CategoryPicker } from '../components/catalog/CategoryPicker';
 import { VariantsSection } from '../components/catalog/VariantsSection';
 import { OptionsSection } from '../components/catalog/OptionsSection';
+import { Stepper } from '../components/ui/Stepper';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   useCreateProduct,
   useDeleteProduct,
@@ -49,8 +51,9 @@ export function ProductEditorScreen() {
   const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
   const [sku, setSku] = useState('');
-  const [leadTimeDays, setLeadTimeDays] = useState('0');
-  const [minQuantity, setMinQuantity] = useState('1');
+  const [leadTimeDays, setLeadTimeDays] = useState(0);
+  const [minQuantity, setMinQuantity] = useState(1);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (product) {
@@ -58,8 +61,8 @@ export function ProductEditorScreen() {
       setCategoryId(product.category_id ?? '');
       setDescription(product.description ?? '');
       setSku(product.sku ?? '');
-      setLeadTimeDays(String(product.lead_time_days));
-      setMinQuantity(String(product.min_quantity));
+      setLeadTimeDays(product.lead_time_days);
+      setMinQuantity(product.min_quantity);
     }
   }, [product]);
 
@@ -84,8 +87,8 @@ export function ProductEditorScreen() {
           categoryId: categoryId || null,
           description: description.trim() || undefined,
           sku: sku.trim() || undefined,
-          leadTimeDays: Number(leadTimeDays) || 0,
-          minQuantity: Number(minQuantity) || 1,
+          leadTimeDays,
+          minQuantity,
         },
         { onSuccess: (p) => navigate(`/catalog/${p.id}`, { replace: true }) }
       );
@@ -97,8 +100,8 @@ export function ProductEditorScreen() {
           category_id: categoryId || null,
           description: description.trim() || null,
           sku: sku.trim() || null,
-          lead_time_days: Number(leadTimeDays) || 0,
-          min_quantity: Number(minQuantity) || 1,
+          lead_time_days: leadTimeDays,
+          min_quantity: minQuantity,
         },
       });
     }
@@ -106,7 +109,6 @@ export function ProductEditorScreen() {
 
   function handleDelete() {
     if (!routeProductId) return;
-    if (!window.confirm(`Delete "${product?.name}"? This cannot be undone.`)) return;
     deleteProduct.mutate(routeProductId, {
       onSuccess: () => navigate('/catalog', { replace: true }),
     });
@@ -152,7 +154,7 @@ export function ProductEditorScreen() {
           </p>
           <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
 
-            <FormRow label="Product name" hint="What customers call this item">
+            <FormRow label="Product name" hint="What customers call this item" required>
               <input
                 type="text"
                 value={name}
@@ -167,31 +169,29 @@ export function ProductEditorScreen() {
             </FormRow>
 
             <FormRow label="Order deadline" hint="How many days before pickup customers must order">
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  inputMode="numeric"
+              <div className="flex items-center gap-3">
+                <Stepper
                   value={leadTimeDays}
-                  onChange={(e) => setLeadTimeDays(e.target.value)}
-                  className="w-16 text-[15px] text-accent-dark bg-transparent focus:outline-none"
+                  onChange={setLeadTimeDays}
+                  min={0}
+                  ariaLabel="order deadline in days"
                 />
                 <span className="text-[14px] text-olive">
-                  {Number(leadTimeDays) === 1 ? 'day' : 'days'} in advance
+                  {leadTimeDays === 1 ? 'day' : 'days'} in advance
                 </span>
               </div>
             </FormRow>
 
             <FormRow label="Minimum order" hint="Fewest pieces a customer can order at once">
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  inputMode="numeric"
+              <div className="flex items-center gap-3">
+                <Stepper
                   value={minQuantity}
-                  onChange={(e) => setMinQuantity(e.target.value)}
-                  className="w-16 text-[15px] text-accent-dark bg-transparent focus:outline-none"
+                  onChange={setMinQuantity}
+                  min={1}
+                  ariaLabel="minimum order quantity"
                 />
                 <span className="text-[14px] text-olive">
-                  {Number(minQuantity) === 1 ? 'piece' : 'pieces'} minimum
+                  {minQuantity === 1 ? 'piece' : 'pieces'} minimum
                 </span>
               </div>
             </FormRow>
@@ -228,7 +228,7 @@ export function ProductEditorScreen() {
             </p>
           </div>
 
-          <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4">
+          <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4 border border-transparent focus-within:border-accent-dark/30 transition-colors duration-150">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -276,7 +276,7 @@ export function ProductEditorScreen() {
             </motion.div>
             <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible">
               <button
-                onClick={handleDelete}
+                onClick={() => setConfirmDeleteOpen(true)}
                 className="w-full flex items-center justify-center gap-2 min-h-[52px] rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-red-500 text-[15px] font-semibold transition-colors duration-150 hover:bg-red-50 active:scale-[0.98]"
               >
                 <Trash2 size={17} strokeWidth={2} />
@@ -286,6 +286,19 @@ export function ProductEditorScreen() {
           </>
         )}
       </main>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Delete this product?"
+        description={`This removes "${product?.name ?? 'this product'}" along with its sizes and options. This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          setConfirmDeleteOpen(false);
+          handleDelete();
+        }}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </div>
   );
 }
@@ -293,19 +306,24 @@ export function ProductEditorScreen() {
 function FormRow({
   label,
   hint,
+  required = false,
   children,
 }: {
   label: string;
   hint?: string;
+  required?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-4 px-5 min-h-[56px] py-3.5">
-      <div className="w-36 shrink-0 pt-0.5">
-        <p className="text-[15px] text-accent-dark font-medium leading-snug">{label}</p>
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-4 px-5 min-h-[56px] py-3.5 focus-within:bg-accent-light/10 transition-colors duration-150">
+      <div className="sm:w-36 sm:shrink-0 sm:pt-0.5">
+        <p className="text-[15px] text-accent-dark font-medium leading-snug">
+          {label}
+          {required && <span className="text-red-500"> *</span>}
+        </p>
         {hint && <p className="text-[12px] text-olive leading-snug mt-0.5">{hint}</p>}
       </div>
-      <div className="flex-1 min-w-0 pt-0.5">{children}</div>
+      <div className="flex-1 min-w-0 sm:pt-0.5">{children}</div>
     </div>
   );
 }

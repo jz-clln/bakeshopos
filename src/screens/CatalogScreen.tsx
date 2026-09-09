@@ -1,9 +1,9 @@
 // File: app/src/screens/CatalogScreen.tsx
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, ChevronRight } from 'lucide-react';
+import { Plus, Search, ChevronRight, X } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useCategories } from '../hooks/useCategories';
 import { useProducts } from '../hooks/useProducts';
@@ -31,7 +31,7 @@ const listRow = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: EASE } },
 };
 
-/* ─── Screen ─── */
+/* Screen */
 export function CatalogScreen() {
   const [query, setQuery] = useState('');
   const { data: categories, isLoading: catLoading, isError: catError } = useCategories();
@@ -40,8 +40,9 @@ export function CatalogScreen() {
   const isLoading = catLoading || prodLoading;
   const isError   = catError  || prodError;
 
-  const filtered = (products ?? []).filter((p) =>
-    p.name.toLowerCase().includes(query.toLowerCase())
+  const filtered = useMemo(
+    () => (products ?? []).filter((p) => p.name.toLowerCase().includes(query.toLowerCase())),
+    [products, query]
   );
 
   return (
@@ -63,31 +64,44 @@ export function CatalogScreen() {
         </Link>
       </motion.div>
 
-      {/* Search */}
-      <motion.div
-        custom={1} variants={fadeUp} initial="hidden" animate="visible"
-        className="relative mb-5"
-      >
-        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-olive pointer-events-none" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search products…"
-          className="w-full h-11 pl-10 pr-4 rounded-full bg-white border border-platinum/70 text-[15px] text-accent-dark placeholder:text-olive/60 focus:outline-none focus:ring-2 focus:ring-accent-dark/20 shadow-[0_1px_4px_rgba(0,0,0,0.05)] transition-shadow duration-200"
-        />
-      </motion.div>
+      <div className="max-w-2xl">
+        {/* Search */}
+        <motion.div
+          custom={1} variants={fadeUp} initial="hidden" animate="visible"
+          className="relative mb-5"
+        >
+          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-olive pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search products…"
+            aria-label="Search products"
+            className="w-full h-11 pl-10 pr-10 rounded-full bg-white border border-platinum/70 text-[15px] text-accent-dark placeholder:text-olive/60 focus:outline-none focus:ring-2 focus:ring-accent-dark/20 shadow-[0_1px_4px_rgba(0,0,0,0.05)] transition-shadow duration-200"
+          />
+          {query.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="Clear search"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-platinum/70 flex items-center justify-center text-olive transition-colors duration-150 hover:bg-platinum active:scale-90"
+            >
+              <X size={13} strokeWidth={2.5} />
+            </button>
+          )}
+        </motion.div>
 
-      {/* States */}
-      {isLoading && <LoadingState />}
-      {!isLoading && isError && <ErrorState />}
-      {!isLoading && !isError && (
-        <CatalogList
-          categories={categories ?? []}
-          products={filtered}
-          hasQuery={query.length > 0}
-        />
-      )}
+        {/* States */}
+        {isLoading && <LoadingState />}
+        {!isLoading && isError && <ErrorState />}
+        {!isLoading && !isError && (
+          <CatalogList
+            categories={categories ?? []}
+            products={filtered}
+            hasQuery={query.length > 0}
+          />
+        )}
+      </div>
 
       {/* Mobile FAB */}
       <motion.div
@@ -106,7 +120,7 @@ export function CatalogScreen() {
   );
 }
 
-/* ─── Sub-components ─── */
+/* Sub-components */
 
 function LoadingState() {
   return (
@@ -138,12 +152,23 @@ function CatalogList({
 }) {
   if (products.length === 0) {
     return (
-      <div className="pt-16 flex flex-col items-center gap-2">
+      <div className="pt-16 flex flex-col items-center gap-3 text-center px-6">
         <p className="text-[15px] font-medium text-accent-dark">
           {hasQuery ? 'No results' : 'No products yet'}
         </p>
+        <p className="text-sm text-olive">
+          {hasQuery
+            ? 'Try a different search term.'
+            : 'Add your first product to start building your catalog.'}
+        </p>
         {!hasQuery && (
-          <p className="text-sm text-olive">Tap + to add your first product.</p>
+          <Link
+            to="/catalog/new"
+            className="inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] mt-1"
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            Add product
+          </Link>
         )}
       </div>
     );
@@ -223,7 +248,7 @@ function ProductRow({ product }: { product: ProductListItem }) {
     <motion.div variants={listRow}>
       <Link
         to={`/catalog/${product.id}`}
-        className="flex items-center justify-between gap-3 px-5 py-3.5 min-h-[56px] transition-colors duration-150 active:bg-platinum/30"
+        className="flex items-center justify-between gap-3 px-5 py-3.5 min-h-[56px] transition-colors duration-150 hover:bg-platinum/20 active:bg-platinum/30"
       >
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-semibold text-accent-dark truncate leading-snug">
