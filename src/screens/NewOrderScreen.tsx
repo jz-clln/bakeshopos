@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Search, UserPlus, Check } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
+import { Dropdown } from '../components/ui/Dropdown';
+import { CalendarInput, toDateString } from '../components/ui/Calendar';
 import { useAuth } from '../lib/auth-context';
 import { formatPrice } from '../lib/currency';
 import { fetchProducts, fetchProductWithDetails } from '../api/products';
@@ -110,6 +112,24 @@ export function NewOrderScreen() {
       console.error('Failed to create customer:', err);
     }
   }
+
+  // Sublabel = starting price from the cheapest active variant, so the
+  // dropdown carries real catalog data instead of a bare name.
+  const productOptions = products.map((p) => {
+    const activePrices = p.variants.filter((v) => v.is_active).map((v) => v.price_amount);
+    const startingPrice = activePrices.length > 0 ? Math.min(...activePrices) : null;
+    return {
+      value: p.id,
+      label: p.name,
+      sublabel: startingPrice !== null ? `Starts at ${formatPrice(startingPrice)}` : undefined,
+    };
+  });
+
+  // Earliest bookable date, driven by the selected product's lead_time_days.
+  // Drop this (and the minDate prop below) if you'd rather not enforce it yet.
+  const minEventDate = productDetails
+    ? toDateString(new Date(Date.now() + productDetails.lead_time_days * 86_400_000))
+    : undefined;
 
   const allRequiredOptionsSelected =
     productDetails?.options
@@ -269,16 +289,13 @@ export function NewOrderScreen() {
         >
           <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-3">Product</p>
 
-          <select
-            value={selectedProductId ?? ''}
-            onChange={(e) => setSelectedProductId(e.target.value || null)}
-            className="w-full px-3 py-2.5 rounded-[10px] border border-platinum text-[14px] mb-3 focus:outline-none focus:border-accent-dark/40"
-          >
-            <option value="">Select a product…</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <Dropdown
+            options={productOptions}
+            value={selectedProductId}
+            onChange={(id) => setSelectedProductId(id)}
+            placeholder="Select a product…"
+            className="mb-3"
+          />
 
           {productDetails && (
             <>
@@ -354,11 +371,12 @@ export function NewOrderScreen() {
           <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-3">Fulfillment</p>
 
           <p className="text-[12px] font-semibold text-olive mb-1.5">Event date</p>
-          <input
-            type="date"
+          <CalendarInput
             value={eventDate}
-            onChange={(e) => setEventDate(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-[10px] border border-platinum text-[14px] mb-4 focus:outline-none focus:border-accent-dark/40"
+            onChange={setEventDate}
+            placeholder="Select event date…"
+            minDate={minEventDate}
+            className="mb-4"
           />
 
           <p className="text-[12px] font-semibold text-olive mb-1.5">Method</p>
