@@ -6,6 +6,7 @@ import { AuthScreen } from './screens/AuthScreen';
 import { AppShell } from './components/layout/AppShell';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { OrdersScreen } from './screens/OrdersScreen';
+import { NewOrderScreen } from './screens/NewOrderScreen';
 import { CatalogScreen } from './screens/CatalogScreen';
 import { ProductEditorScreen } from './screens/ProductEditorScreen';
 import { MessagesScreen } from './screens/MessagesScreen';
@@ -34,6 +35,7 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route path="/"           element={<DashboardScreen />}    />
           <Route path="/orders"     element={<OrdersScreen />}        />
+          <Route path="/orders/new" element={<NewOrderScreen />}      />
           <Route path="/catalog"    element={<CatalogScreen />}       />
           <Route path="/catalog/new"          element={<ProductEditorScreen />} />
           <Route path="/catalog/:productId"   element={<ProductEditorScreen />} />
