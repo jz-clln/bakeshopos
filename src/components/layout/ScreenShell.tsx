@@ -4,6 +4,10 @@
 // Handles safe-area top padding and the shared content container.
 // Desktop: content sits next to the Sidebar (from AppShell).
 // Mobile: content sits above the TabBar (from AppShell).
+//
+// NOT used by ConversationDetailScreen.tsx — that screen needs a
+// fixed-height chat layout instead of ScreenShell's "whole page
+// scrolls" model, so it builds its own container.
 
 import type { ReactNode } from 'react';
 
