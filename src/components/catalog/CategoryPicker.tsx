@@ -21,7 +21,7 @@ interface CategoryPickerProps {
 
 export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
   const { organizationId } = useAuth();
-  const { data: categories = [] } = useCategories();
+  const { data: categories = [], isLoading: categoriesLoading, isError: categoriesError } = useCategories();
   const queryClient = useQueryClient();
 
   const [open, setOpen] = useState(false);
@@ -74,6 +74,8 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
       <button
         type="button"
         onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         className="flex items-center justify-between w-full text-left"
       >
         <span className={`text-[15px] ${selected ? 'text-accent-dark' : 'text-olive/60'}`}>
@@ -100,6 +102,9 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
             {/* Sheet panel */}
             <motion.div
               key="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="category-sheet-title"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -114,10 +119,11 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
 
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-platinum/60">
-                <p className="text-[17px] font-semibold text-accent-dark">Category</p>
+                <p id="category-sheet-title" className="text-[17px] font-semibold text-accent-dark">Category</p>
                 <button
                   onClick={() => setOpen(false)}
-                  className="w-8 h-8 rounded-full bg-platinum/60 flex items-center justify-center"
+                  aria-label="Close"
+                  className="w-8 h-8 rounded-full bg-platinum/60 flex items-center justify-center transition-colors duration-150 hover:bg-platinum active:scale-90"
                 >
                   <X size={15} className="text-olive" />
                 </button>
@@ -129,7 +135,7 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
                 <button
                   type="button"
                   onClick={() => { onChange(''); setOpen(false); }}
-                  className="w-full flex items-center justify-between px-5 py-3.5 min-h-[52px] border-b border-platinum/40 transition-colors duration-150 active:bg-platinum/30"
+                  className="w-full flex items-center justify-between px-5 py-3.5 min-h-[52px] border-b border-platinum/40 transition-colors duration-150 hover:bg-platinum/20 focus-visible:bg-platinum/20 active:bg-platinum/30 outline-none"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-platinum/60 flex items-center justify-center">
@@ -140,12 +146,23 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
                   {!value && <Check size={16} className="text-accent-dark" strokeWidth={2.5} />}
                 </button>
 
-                {categories.map((cat) => (
+                {categoriesLoading && (
+                  <div className="px-5 py-4 space-y-2 animate-pulse">
+                    <div className="h-10 rounded-[10px] bg-platinum/60" />
+                    <div className="h-10 rounded-[10px] bg-platinum/60" />
+                  </div>
+                )}
+
+                {categoriesError && (
+                  <p className="px-5 py-4 text-[13px] text-olive">Couldn't load categories. Try again.</p>
+                )}
+
+                {!categoriesLoading && !categoriesError && categories.map((cat) => (
                   <button
                     key={cat.id}
                     type="button"
                     onClick={() => { onChange(cat.id); setOpen(false); }}
-                    className="w-full flex items-center justify-between px-5 py-3.5 min-h-[52px] border-b border-platinum/40 last:border-0 transition-colors duration-150 active:bg-platinum/30"
+                    className="w-full flex items-center justify-between px-5 py-3.5 min-h-[52px] border-b border-platinum/40 last:border-0 transition-colors duration-150 hover:bg-platinum/20 focus-visible:bg-platinum/20 active:bg-platinum/30 outline-none"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-accent-light/30 flex items-center justify-center">
@@ -213,7 +230,8 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
                       <button
                         type="button"
                         onClick={() => { setAdding(false); setNewName(''); }}
-                        className="w-11 h-11 rounded-[12px] bg-platinum/40 flex items-center justify-center shrink-0"
+                        aria-label="Cancel adding category"
+                        className="w-11 h-11 rounded-[12px] bg-platinum/40 flex items-center justify-center shrink-0 transition-colors duration-150 hover:bg-platinum/60 active:scale-90"
                       >
                         <X size={15} className="text-olive" />
                       </button>

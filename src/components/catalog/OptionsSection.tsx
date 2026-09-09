@@ -13,6 +13,7 @@ import {
   useDeleteOptionValue,
 } from '../../hooks/useProductOptions';
 import { formatPrice } from '../../lib/currency';
+import { Switch } from '../ui/Switch';
 import type { ProductOption, ProductOptionValue } from '../../types/catalog';
 
 type OptionWithValues = ProductOption & { values: ProductOptionValue[] };
@@ -29,14 +30,12 @@ export function OptionsSection({ productId, options }: OptionsSectionProps) {
 
   return (
     <section>
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2 px-1">
+      <h2 className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
         Options
       </h2>
       <div className="space-y-3">
         {options.length === 0 && !showAddOption && (
-          <p className="px-1 text-sm text-gray-400">
-            No options yet — e.g. "Flavor" or "Color."
-          </p>
+          <p className="px-1 text-sm text-olive">No options yet. Try "Flavor" or "Color."</p>
         )}
         {options.map((option) => (
           <OptionCard
@@ -60,9 +59,9 @@ export function OptionsSection({ productId, options }: OptionsSectionProps) {
         ) : (
           <button
             onClick={() => setShowAddOption(true)}
-            className="w-full flex items-center gap-2 px-4 py-3 rounded-xl bg-white border border-gray-200 text-accent text-sm font-medium min-h-[44px]"
+            className="w-full flex items-center justify-center gap-2 min-h-[48px] rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-accent-dark text-[14px] font-semibold transition-colors duration-150 hover:bg-platinum/10 active:scale-[0.99]"
           >
-            <Plus size={18} /> Add Option
+            <Plus size={16} strokeWidth={2.5} /> Add Option
           </button>
         )}
       </div>
@@ -84,39 +83,44 @@ function OptionCard({
   const deleteValue = useDeleteOptionValue(productId);
 
   return (
-    <div className="rounded-xl bg-white border border-gray-200 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-platinum/60">
         <div className="flex items-center gap-2">
-          <p className="text-gray-900 font-medium">{option.name}</p>
+          <p className="text-[15px] text-accent-dark font-medium">{option.name}</p>
           {option.is_required && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-accent-light/30 text-accent-dark">
               Required
             </span>
           )}
         </div>
-        <button onClick={onDelete} aria-label={`Delete ${option.name}`}>
-          <Trash2 size={18} className="text-gray-400" />
+        <button
+          onClick={onDelete}
+          aria-label={`Delete ${option.name}`}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-olive transition-colors duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90"
+        >
+          <Trash2 size={16} />
         </button>
       </div>
 
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-platinum/60">
         {option.values.map((value) => (
           <div
             key={value.id}
-            className="flex items-center justify-between px-4 py-2 min-h-[44px]"
+            className="flex items-center justify-between px-5 py-3 min-h-[48px]"
           >
-            <p className="text-gray-800">{value.value}</p>
-            <div className="flex items-center gap-3">
+            <p className="text-[14px] text-accent-dark">{value.value}</p>
+            <div className="flex items-center gap-2">
               {value.price_adjustment_amount !== 0 && (
-                <span className="text-sm text-gray-500">
+                <span className="text-[13px] text-olive">
                   +{formatPrice(value.price_adjustment_amount)}
                 </span>
               )}
               <button
                 onClick={() => deleteValue.mutate(value.id)}
                 aria-label={`Delete ${value.value}`}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-olive transition-colors duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90"
               >
-                <Trash2 size={16} className="text-gray-400" />
+                <Trash2 size={15} />
               </button>
             </div>
           </div>
@@ -137,7 +141,7 @@ function OptionCard({
       ) : (
         <button
           onClick={() => setShowAddValue(true)}
-          className="w-full flex items-center gap-2 px-4 py-2 text-accent text-sm min-h-[40px]"
+          className="w-full flex items-center gap-2 px-5 py-3 min-h-[44px] text-accent-dark text-[14px] font-semibold transition-colors duration-150 hover:bg-platinum/20 active:bg-platinum/30"
         >
           <Plus size={16} /> Add Choice
         </button>
@@ -157,40 +161,37 @@ function AddOptionForm({
 }) {
   const [name, setName] = useState('');
   const [isRequired, setIsRequired] = useState(false);
+  const canSubmit = name.trim().length > 0;
 
   function handleSubmit() {
-    if (!name.trim()) return;
+    if (!canSubmit) return;
     onSubmit(name.trim(), isRequired);
   }
 
   return (
-    <div className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
+    <div className="bg-white rounded-[16px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] p-4 space-y-3">
       <input
         type="text"
         placeholder="Option name (e.g. Flavor)"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="w-full min-h-[44px] px-3 rounded-lg border border-gray-300 text-base"
+        className="w-full h-11 px-3.5 rounded-[10px] border border-platinum text-[15px] text-accent-dark placeholder:text-olive/50 focus:outline-none focus:border-accent-dark/40"
       />
-      <label className="flex items-center gap-2 text-sm text-gray-600">
-        <input
-          type="checkbox"
-          checked={isRequired}
-          onChange={(e) => setIsRequired(e.target.checked)}
-        />
-        Customer must choose one
-      </label>
+      <div className="flex items-center justify-between py-1">
+        <span className="text-[14px] text-olive">Customer must choose one</span>
+        <Switch checked={isRequired} onChange={setIsRequired} ariaLabel="Customer must choose one" />
+      </div>
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
-          disabled={submitting}
-          className="flex-1 min-h-[40px] rounded-lg bg-accent text-white text-sm font-medium disabled:opacity-50"
+          disabled={!canSubmit || submitting}
+          className="flex-1 h-11 rounded-[10px] bg-accent-dark text-white text-[14px] font-semibold disabled:opacity-40 transition-opacity duration-150 active:scale-[0.98]"
         >
-          Add
+          {submitting ? 'Adding…' : 'Add'}
         </button>
         <button
           onClick={onCancel}
-          className="flex-1 min-h-[40px] rounded-lg border border-gray-300 text-sm text-gray-600"
+          className="flex-1 h-11 rounded-[10px] bg-platinum/60 text-[14px] font-semibold text-accent-dark transition-colors duration-150 hover:bg-platinum active:scale-[0.98]"
         >
           Cancel
         </button>
@@ -210,22 +211,23 @@ function AddValueForm({
 }) {
   const [value, setValue] = useState('');
   const [adjustmentPesos, setAdjustmentPesos] = useState('');
+  const canSubmit = value.trim().length > 0;
 
   function handleSubmit() {
-    if (!value.trim()) return;
+    if (!canSubmit) return;
     const priceAdjustmentAmount =
       Math.round(parseFloat(adjustmentPesos || '0') * 100) || 0;
     onSubmit(value.trim(), priceAdjustmentAmount);
   }
 
   return (
-    <div className="px-4 py-3 space-y-2 border-t border-gray-100">
+    <div className="px-5 py-3.5 space-y-2 border-t border-platinum/60">
       <input
         type="text"
         placeholder="Choice (e.g. Chocolate)"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="w-full min-h-[44px] px-3 rounded-lg border border-gray-300 text-base"
+        className="w-full h-11 px-3.5 rounded-[10px] border border-platinum text-[15px] text-accent-dark placeholder:text-olive/50 focus:outline-none focus:border-accent-dark/40"
       />
       <input
         type="number"
@@ -233,19 +235,19 @@ function AddValueForm({
         placeholder="Extra cost (₱, optional)"
         value={adjustmentPesos}
         onChange={(e) => setAdjustmentPesos(e.target.value)}
-        className="w-full min-h-[44px] px-3 rounded-lg border border-gray-300 text-base"
+        className="w-full h-11 px-3.5 rounded-[10px] border border-platinum text-[15px] text-accent-dark placeholder:text-olive/50 focus:outline-none focus:border-accent-dark/40"
       />
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
-          disabled={submitting}
-          className="flex-1 min-h-[40px] rounded-lg bg-accent text-white text-sm font-medium disabled:opacity-50"
+          disabled={!canSubmit || submitting}
+          className="flex-1 h-11 rounded-[10px] bg-accent-dark text-white text-[14px] font-semibold disabled:opacity-40 transition-opacity duration-150 active:scale-[0.98]"
         >
-          Add
+          {submitting ? 'Adding…' : 'Add'}
         </button>
         <button
           onClick={onCancel}
-          className="flex-1 min-h-[40px] rounded-lg border border-gray-300 text-sm text-gray-600"
+          className="flex-1 h-11 rounded-[10px] bg-platinum/60 text-[14px] font-semibold text-accent-dark transition-colors duration-150 hover:bg-platinum active:scale-[0.98]"
         >
           Cancel
         </button>

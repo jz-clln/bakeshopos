@@ -1,6 +1,6 @@
 // File: app/src/components/catalog/VariantsSection.tsx
 //
-// Manages a product's variants (sizes) inline — list, add, toggle
+// Manages a product's variants (sizes) inline: list, add, toggle
 // active, delete. No separate modal/screen; everything happens right
 // in this card.
 
@@ -27,12 +27,12 @@ export function VariantsSection({ productId, variants }: VariantsSectionProps) {
 
   return (
     <section>
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2 px-1">
+      <h2 className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
         Sizes & Prices
       </h2>
-      <div className="rounded-xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+      <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] divide-y divide-platinum/60 overflow-hidden">
         {variants.length === 0 && !showAddForm && (
-          <p className="px-4 py-3 text-sm text-gray-400">No sizes added yet.</p>
+          <p className="px-5 py-3.5 text-[14px] text-olive">No sizes added yet.</p>
         )}
         {variants.map((variant) => (
           <VariantRow
@@ -61,9 +61,9 @@ export function VariantsSection({ productId, variants }: VariantsSectionProps) {
         ) : (
           <button
             onClick={() => setShowAddForm(true)}
-            className="w-full flex items-center gap-2 px-4 py-3 text-accent text-sm font-medium min-h-[44px]"
+            className="w-full flex items-center gap-2 px-5 py-3.5 text-accent-dark text-[14px] font-semibold min-h-[44px] transition-colors duration-150 hover:bg-platinum/20 active:bg-platinum/30"
           >
-            <Plus size={18} /> Add Size
+            <Plus size={16} /> Add Size
           </button>
         )}
       </div>
@@ -81,24 +81,28 @@ function VariantRow({
   onDelete: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 min-h-[52px]">
+    <div className="flex items-center justify-between px-5 py-3 min-h-[52px]">
       <div>
-        <p className="text-gray-900">{variant.name}</p>
-        <p className="text-sm text-gray-500">{formatPrice(variant.price_amount)}</p>
+        <p className="text-[15px] text-accent-dark font-medium">{variant.name}</p>
+        <p className="text-[13px] text-olive">{formatPrice(variant.price_amount)}</p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <button
           onClick={onToggleActive}
-          className={`text-xs px-2 py-1 rounded-full ${
+          className={`text-[12px] font-semibold px-3 py-1.5 rounded-full border transition-colors duration-150 active:scale-95 ${
             variant.is_active
-              ? 'bg-green-50 text-green-700'
-              : 'bg-gray-100 text-gray-400'
+              ? 'bg-accent-dark text-white border-accent-dark hover:bg-accent-dark/90'
+              : 'bg-white text-olive border-platinum hover:bg-platinum/20'
           }`}
         >
           {variant.is_active ? 'Active' : 'Inactive'}
         </button>
-        <button onClick={onDelete} aria-label={`Delete ${variant.name}`}>
-          <Trash2 size={18} className="text-gray-400" />
+        <button
+          onClick={onDelete}
+          aria-label={`Delete ${variant.name}`}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-olive transition-colors duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90"
+        >
+          <Trash2 size={16} />
         </button>
       </div>
     </div>
@@ -117,20 +121,22 @@ function AddVariantForm({
   const [name, setName] = useState('');
   const [pricePesos, setPricePesos] = useState('');
 
+  const priceAmount = Math.round(parseFloat(pricePesos || '0') * 100);
+  const canSubmit = name.trim().length > 0 && !Number.isNaN(priceAmount) && priceAmount > 0;
+
   function handleSubmit() {
-    const priceAmount = Math.round(parseFloat(pricePesos || '0') * 100);
-    if (!name.trim() || Number.isNaN(priceAmount) || priceAmount <= 0) return;
+    if (!canSubmit) return;
     onSubmit(name.trim(), priceAmount);
   }
 
   return (
-    <div className="px-4 py-3 space-y-2">
+    <div className="px-5 py-3.5 space-y-2">
       <input
         type="text"
         placeholder="Size name (e.g. 8-inch)"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="w-full min-h-[44px] px-3 rounded-lg border border-gray-300 text-base"
+        className="w-full h-11 px-3.5 rounded-[10px] border border-platinum text-[15px] text-accent-dark placeholder:text-olive/50 focus:outline-none focus:border-accent-dark/40"
       />
       <input
         type="number"
@@ -138,19 +144,19 @@ function AddVariantForm({
         placeholder="Price (₱)"
         value={pricePesos}
         onChange={(e) => setPricePesos(e.target.value)}
-        className="w-full min-h-[44px] px-3 rounded-lg border border-gray-300 text-base"
+        className="w-full h-11 px-3.5 rounded-[10px] border border-platinum text-[15px] text-accent-dark placeholder:text-olive/50 focus:outline-none focus:border-accent-dark/40"
       />
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
-          disabled={submitting}
-          className="flex-1 min-h-[40px] rounded-lg bg-accent text-white text-sm font-medium disabled:opacity-50"
+          disabled={!canSubmit || submitting}
+          className="flex-1 h-11 rounded-[10px] bg-accent-dark text-white text-[14px] font-semibold disabled:opacity-40 transition-opacity duration-150 active:scale-[0.98]"
         >
-          Add
+          {submitting ? 'Adding…' : 'Add'}
         </button>
         <button
           onClick={onCancel}
-          className="flex-1 min-h-[40px] rounded-lg border border-gray-300 text-sm text-gray-600"
+          className="flex-1 h-11 rounded-[10px] bg-platinum/60 text-[14px] font-semibold text-accent-dark transition-colors duration-150 hover:bg-platinum active:scale-[0.98]"
         >
           Cancel
         </button>
