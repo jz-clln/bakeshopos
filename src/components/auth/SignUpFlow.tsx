@@ -11,6 +11,7 @@ import { ChevronLeft, Loader2, Mail, Lock, Store } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { ProgressBar } from './ProgressBar';
 import { IconInput } from './IconInput';
+import { TermsConsent } from './TermsConsent';
 
 interface SignUpFlowProps {
   onSwitchToSignIn: () => void;
@@ -25,6 +26,7 @@ export function SignUpFlow({ onSwitchToSignIn }: SignUpFlowProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
@@ -61,12 +63,21 @@ export function SignUpFlow({ onSwitchToSignIn }: SignUpFlowProps) {
       setError("Passwords don't match.");
       return;
     }
+    if (!termsAccepted) {
+      setError('Please agree to the Terms and Conditions and Privacy Policy to continue.');
+      return;
+    }
 
     setSubmitting(true);
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { organization_name: shopName.trim() } },
+      options: {
+        data: {
+          organization_name: shopName.trim(),
+          terms_accepted: termsAccepted,
+        },
+      },
     });
     setSubmitting(false);
 
@@ -76,9 +87,6 @@ export function SignUpFlow({ onSwitchToSignIn }: SignUpFlowProps) {
     }
 
     if (!data.session) {
-      // "Confirm email" is turned on for this project — the app's
-      // session listener picks things up automatically once confirmed,
-      // so this screen just needs to explain what to do next.
       setAwaitingConfirmation(true);
     }
   }
@@ -129,6 +137,8 @@ export function SignUpFlow({ onSwitchToSignIn }: SignUpFlowProps) {
             confirmPassword={confirmPassword}
             onPasswordChange={setPassword}
             onConfirmPasswordChange={setConfirmPassword}
+            termsAccepted={termsAccepted}
+            onTermsAcceptedChange={setTermsAccepted}
             onSubmit={handleCreateAccount}
             submitting={submitting}
           />
@@ -227,6 +237,8 @@ function StepPassword({
   confirmPassword,
   onPasswordChange,
   onConfirmPasswordChange,
+  termsAccepted,
+  onTermsAcceptedChange,
   onSubmit,
   submitting,
 }: {
@@ -234,6 +246,8 @@ function StepPassword({
   confirmPassword: string;
   onPasswordChange: (v: string) => void;
   onConfirmPasswordChange: (v: string) => void;
+  termsAccepted: boolean;
+  onTermsAcceptedChange: (v: boolean) => void;
   onSubmit: () => void;
   submitting: boolean;
 }) {
@@ -263,9 +277,10 @@ function StepPassword({
         autoComplete="new-password"
         required
       />
+      <TermsConsent checked={termsAccepted} onChange={onTermsAcceptedChange} />
       <button
         onClick={onSubmit}
-        disabled={submitting}
+        disabled={submitting || !termsAccepted}
         className="w-full min-h-[56px] rounded-control bg-accent-dark text-white font-semibold shadow-control transition-transform active:scale-[0.98] disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
       >
         {submitting && <Loader2 size={18} className="animate-spin" />}
