@@ -137,7 +137,11 @@ export function SettingsScreen() {
             to="/settings/shop"
           />
           <SettingsRow icon={<Bell size={17} className="text-accent-dark" />} label="Notifications" />
-          <SettingsRow icon={<ShieldCheck size={17} className="text-accent-dark" />} label="Privacy & security" />
+           <SettingsRow
+            icon={<ShieldCheck size={17} className="text-accent-dark" />}
+            label="Privacy & security"
+            to="/settings/privacy"
+          />
         </div>
       </motion.section>
 
