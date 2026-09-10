@@ -1,9 +1,9 @@
 // File: app/src/screens/ShopDetailsScreen.tsx
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Check, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Camera, Check, RefreshCw, X } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { Switch } from '../components/ui/Switch';
 import { useAuth } from '../lib/auth-context';
@@ -11,6 +11,9 @@ import {
   fetchShopProfile,
   updateShopProfile,
   setAcceptingOrders,
+  uploadShopLogo,
+  removeShopLogo,
+  InvalidLogoFileError,
   type ShopProfile,
 } from '../api/shopProfile';
 
@@ -19,6 +22,7 @@ const EASE = [0.23, 1, 0.32, 1] as const;
 export function ShopDetailsScreen() {
   const { organizationId } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState<ShopProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +31,8 @@ export function ShopDetailsScreen() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [togglingAccepting, setTogglingAccepting] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
 
   function loadProfile() {
     if (!organizationId) return;
@@ -92,6 +98,41 @@ export function ShopDetailsScreen() {
     }
   }
 
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file || !organizationId) return;
+
+    setLogoError(null);
+    setUploadingLogo(true);
+    try {
+      const logoUrl = await uploadShopLogo(organizationId, file);
+      setProfile((prev) => (prev ? { ...prev, logo_url: logoUrl } : prev));
+    } catch (err) {
+      console.error('Failed to upload shop logo:', err);
+      setLogoError(
+        err instanceof InvalidLogoFileError ? err.message : 'Could not upload image. Please try again.'
+      );
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  async function handleRemoveLogo() {
+    if (!organizationId || !profile?.logo_url) return;
+    setLogoError(null);
+    setUploadingLogo(true);
+    try {
+      await removeShopLogo(organizationId);
+      setProfile((prev) => (prev ? { ...prev, logo_url: null } : prev));
+    } catch (err) {
+      console.error('Failed to remove shop logo:', err);
+      setLogoError('Could not remove image. Please try again.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
   if (loading) {
     return (
       <ScreenShell>
@@ -146,6 +187,59 @@ export function ShopDetailsScreen() {
       </p>
 
       <div className="space-y-4 max-w-lg">
+        <div className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] flex items-center gap-4">
+          <div className="relative shrink-0">
+            {profile.logo_url ? (
+              <img
+                src={profile.logo_url}
+                alt={`${profile.name} logo`}
+                className="w-16 h-16 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-accent-dark flex items-center justify-center text-xl font-bold text-white">
+                {profile.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            {uploadingLogo && (
+              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                <RefreshCw size={16} className="text-white animate-spin" />
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[14px] font-medium text-accent-dark mb-1">Shop logo</p>
+            <p className="text-[12px] text-olive mb-2">Shown in Settings and to customers on Messenger.</p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingLogo}
+                className="inline-flex items-center gap-1.5 rounded-full bg-platinum/60 text-accent-dark px-3.5 h-8 text-[12px] font-semibold transition-transform duration-150 active:scale-95 disabled:opacity-40"
+              >
+                <Camera size={13} />
+                {profile.logo_url ? 'Change' : 'Upload'}
+              </button>
+              {profile.logo_url && (
+                <button
+                  onClick={handleRemoveLogo}
+                  disabled={uploadingLogo}
+                  className="inline-flex items-center gap-1 text-[12px] font-medium text-red-500 disabled:opacity-40"
+                >
+                  <X size={13} />
+                  Remove
+                </button>
+              )}
+            </div>
+            {logoError && <p className="text-[12px] text-red-600 mt-1.5">{logoError}</p>}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={handleLogoChange}
+          />
+        </div>
+
         <div className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] space-y-3">
           <div>
             <label className="text-[12px] font-semibold text-olive mb-1 block">Shop name</label>
@@ -241,7 +335,7 @@ export function ShopDetailsScreen() {
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
         </button>
         <p className="text-[11px] text-olive text-center -mt-1">
-          {togglingAccepting ? 'Updating order status…' : 'Accepting orders saves immediately. Other changes need Save.'}
+          {togglingAccepting ? 'Updating order status…' : 'Accepting orders and the shop logo save immediately. Other changes need Save.'}
         </p>
       </div>
     </ScreenShell>

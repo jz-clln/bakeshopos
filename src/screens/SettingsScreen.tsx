@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { getFacebookConnection, startFacebookConnect, type FacebookConnection } from '../api/facebook';
+import { fetchShopIdentity, type ShopIdentity } from '../api/shopProfile';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -34,7 +35,33 @@ export function SettingsScreen() {
     organizationId?: string;
   };
 
-  const shopName = session?.user?.user_metadata?.organization_name?.trim() || 'Your Shop';
+  const [identity, setIdentity] = useState<ShopIdentity | null>(null);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+
+    fetchShopIdentity(organizationId)
+      .then((data) => {
+        if (!cancelled) setIdentity(data);
+      })
+      .catch((err) => {
+        console.error('Failed to load shop identity:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
+  // Falls back to the org name captured at sign-up (and then to a
+  // generic label) while the real profile is still loading, so the
+  // card never renders blank.
+  const shopName =
+    identity?.name?.trim() ||
+    session?.user?.user_metadata?.organization_name?.trim() ||
+    'Your Shop';
+  const logoUrl = identity?.logo_url ?? null;
 
   const [fbConnection, setFbConnection] = useState<FacebookConnection | null>(null);
   const [loadingFb, setLoadingFb] = useState(true);
@@ -93,8 +120,12 @@ export function SettingsScreen() {
         custom={1} variants={fadeUp} initial="hidden" animate="visible"
         className="bg-accent-dark rounded-[20px] px-5 py-5 flex items-center gap-4 mb-5 shadow-[0_4px_20px_rgba(0,0,0,0.12)]"
       >
-        <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center text-lg font-bold text-white shrink-0">
-          {shopName.charAt(0).toUpperCase()}
+        <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center text-lg font-bold text-white shrink-0 overflow-hidden">
+          {logoUrl ? (
+            <img src={logoUrl} alt={`${shopName} logo`} className="w-full h-full object-cover" />
+          ) : (
+            shopName.charAt(0).toUpperCase()
+          )}
         </div>
         <div className="min-w-0">
           <p className="text-white font-semibold text-[17px] truncate">{shopName}</p>
