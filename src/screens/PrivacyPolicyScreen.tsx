@@ -8,19 +8,19 @@ import { LegalDocument } from '../components/legal/LegalDocument';
 
 export function PrivacyPolicyScreen() {
   return (
-    <LegalDocument title="Privacy Policy" lastUpdated="[EFFECTIVE DATE]">
+    <LegalDocument title="Privacy Policy" lastUpdated="September 13, 2026">
       <p>
-        This Privacy Policy explains how [YOUR COMPANY NAME] ("BakeShopOS," "we," "us," or "our")
+        This Privacy Policy explains how Keki ("Keki," "we," "us," or "our")
         collects, uses, stores, and protects personal information in connection with our platform,
         which helps small food businesses manage orders, catalogs, and customer conversations,
         including through an AI assistant on Facebook Messenger.
       </p>
       <p>
         This Policy applies to two groups of people: business owners and staff who create an
-        account to use BakeShopOS ("Merchants"), and individuals who message a Merchant's shop
+        account to use Keki ("Merchants"), and individuals who message a Merchant's shop
         through Facebook Messenger ("Customers"). If you are a Customer, the shop you messaged is
         the party responsible for your order and your relationship with them, but this Policy
-        explains how BakeShopOS, as the platform they use, handles your information on their
+        explains how Keki, as the platform they use, handles your information on their
         behalf.
       </p>
 
@@ -128,7 +128,7 @@ export function PrivacyPolicyScreen() {
 
       <h2>9. Children's Privacy</h2>
       <p>
-        BakeShopOS is intended for use by adults operating or interacting with a business. We do
+        Keki is intended for use by adults operating or interacting with a business. We do
         not knowingly collect personal information from children. If you believe a child has
         provided us with personal information, contact us and we will take steps to remove it.
       </p>
@@ -143,7 +143,7 @@ export function PrivacyPolicyScreen() {
       <h2>11. Contact Us</h2>
       <p>
         If you have questions about this Policy or how your data is handled, contact us at
-        [CONTACT EMAIL] or write to [BUSINESS ADDRESS]. You may also file a complaint with the
+        kekiai@gmail.com. You may also file a complaint with the
         National Privacy Commission at{' '}
         <a href="https://privacy.gov.ph" target="_blank" rel="noopener noreferrer">privacy.gov.ph</a>.
       </p>

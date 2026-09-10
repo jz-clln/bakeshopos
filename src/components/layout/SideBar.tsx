@@ -2,7 +2,6 @@
 
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Cake } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import type { NavItem } from '../../config/navigation';
 
@@ -24,13 +23,8 @@ export function Sidebar({ navItems }: SidebarProps) {
       className="hidden md:flex md:w-64 md:flex-col md:shrink-0 bg-white border-r border-platinum/70"
     >
       {/* Brand */}
-      <div className="flex items-center gap-3 px-5 pt-8 pb-7">
-        <div className="w-10 h-10 rounded-[12px] bg-accent-dark flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-          <Cake size={20} className="text-white" strokeWidth={1.75} />
-        </div>
-        <span className="font-display text-[17px] font-bold tracking-tight text-accent-dark">
-          BakeShopOS
-        </span>
+      <div className="px-5 pt-8 pb-7">
+        <img src="/logo-horizontal.png" alt="KEKI" className="h-9 w-auto" />
       </div>
 
       {/* Nav */}

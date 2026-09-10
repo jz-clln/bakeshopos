@@ -8,9 +8,9 @@ import { LegalDocument } from '../components/legal/LegalDocument';
 
 export function CookiesPolicyScreen() {
   return (
-    <LegalDocument title="Cookies Policy" lastUpdated="[EFFECTIVE DATE]">
+    <LegalDocument title="Cookies Policy" lastUpdated="September 13, 2026">
       <p>
-        This Cookies Policy explains how BakeShopOS uses cookies and similar technologies, such as
+        This Cookies Policy explains how Keki uses cookies and similar technologies, such as
         browser local storage, when you use our platform.
       </p>
 
@@ -23,14 +23,14 @@ export function CookiesPolicyScreen() {
 
       <h2>2. What We Actually Use</h2>
       <p>
-        BakeShopOS currently does not use cookies for tracking or advertising. We use your
+        Keki currently does not use cookies for tracking or advertising. We use your
         browser's local storage to keep you signed in to your Merchant account between visits,
         so you do not have to log in every time. This is considered strictly necessary for the
         platform to function and does not track you across other websites.
       </p>
       <p>
         We do not currently use analytics cookies, advertising cookies, or third-party tracking
-        pixels on BakeShopOS.
+        pixels on Keki.
       </p>
 
       <h2>3. Facebook Messenger</h2>

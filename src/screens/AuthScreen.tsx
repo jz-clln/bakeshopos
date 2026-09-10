@@ -27,7 +27,7 @@ export function AuthScreen() {
           <Cake size={28} className="text-white" strokeWidth={1.75} />
         </div>
         <div className="text-center">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-accent-dark">BakeShopOS</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-accent-dark">Keki</h1>
           <p className="text-sm text-olive mt-0.5">Your bakery, beautifully managed.</p>
         </div>
       </motion.div>

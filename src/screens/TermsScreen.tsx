@@ -10,13 +10,13 @@ export function TermsScreen() {
   return (
     <LegalDocument title="Terms and Conditions" lastUpdated="[EFFECTIVE DATE]">
       <p>
-        These Terms and Conditions ("Terms") govern your access to and use of BakeShopOS, a
-        platform operated by [YOUR COMPANY NAME] that helps small food businesses manage catalogs,
+        These Terms and Conditions ("Terms") govern your access to and use of Keki, a
+        platform operated by Keki Developers that helps small food businesses manage catalogs,
         orders, and customer conversations, including through an AI assistant on Facebook
         Messenger. By creating an account, you agree to these Terms.
       </p>
 
-      <h2>1. Who Can Use BakeShopOS</h2>
+      <h2>1. Who Can Use Keki</h2>
       <p>
         You must be at least 18 years old and legally able to enter into contracts to create an
         account. You are responsible for the accuracy of the information you provide and for
@@ -27,14 +27,14 @@ export function TermsScreen() {
       <ul>
         <li>Keep your product listings, prices, and lead times accurate and up to date.</li>
         <li>Honor orders placed through the platform in good faith, and communicate promptly with customers about any changes.</li>
-        <li>Handle payments and refunds directly with your customers. BakeShopOS does not process payments; it only helps you verify payment proof images customers send you.</li>
+        <li>Handle payments and refunds directly with your customers. Keki does not process payments; it only helps you verify payment proof images customers send you.</li>
         <li>Comply with Facebook's Messenger Platform Policy and Meta's Platform Terms when using the Messenger integration.</li>
         <li>Comply with the Data Privacy Act of 2012 with respect to your own customers' information.</li>
       </ul>
 
       <h2>3. The AI Assistant</h2>
       <p>
-        BakeShopOS includes an AI assistant that can answer customer questions, calculate prices,
+        Keki includes an AI assistant that can answer customer questions, calculate prices,
         and draft orders on your behalf. The assistant is designed to only quote prices and
         availability it has actually looked up, and to hand off to you when it is unsure. However,
         AI-generated responses may occasionally be incomplete or imperfect. You remain responsible
@@ -73,14 +73,14 @@ export function TermsScreen() {
 
       <h2>8. Limitation of Liability</h2>
       <p>
-        To the fullest extent permitted by law, [YOUR COMPANY NAME] will not be liable for
+        To the fullest extent permitted by law, Keki will not be liable for
         indirect, incidental, or consequential damages arising from your use of the platform,
         including lost sales, lost data, or disputes between you and your customers.
       </p>
 
       <h2>9. Termination</h2>
       <p>
-        You may stop using BakeShopOS at any time. We may suspend or terminate accounts that
+        You may stop using Keki at any time. We may suspend or terminate accounts that
         violate these Terms, engage in unlawful activity, or misuse the platform.
       </p>
 
@@ -88,8 +88,7 @@ export function TermsScreen() {
       <p>
         These Terms are governed by the laws of the Republic of the Philippines. Any dispute
         arising from these Terms will first be addressed through good-faith negotiation, and
-        failing that, will be subject to the exclusive jurisdiction of the courts of [CITY,
-        PROVINCE].
+        failing that, will be subject to the exclusive jurisdiction of the courts locally.
       </p>
 
       <h2>11. Changes to These Terms</h2>
@@ -100,7 +99,7 @@ export function TermsScreen() {
       </p>
 
       <h2>12. Contact Us</h2>
-      <p>Questions about these Terms can be sent to [CONTACT EMAIL].</p>
+      <p>Questions about these Terms can be sent to kekiai@gmail.com.</p>
     </LegalDocument>
   );
 }

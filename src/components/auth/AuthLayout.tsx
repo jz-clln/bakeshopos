@@ -15,7 +15,6 @@
 // copies of the same form with separate state.
 
 import type { ReactNode } from 'react';
-import { Cake } from 'lucide-react';
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -27,12 +26,11 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       >
         <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-accent-light/25 blur-2xl" />
         <div className="relative z-10">
-          <div className="w-16 h-16 rounded-control bg-white/15 flex items-center justify-center mb-5">
-            <Cake size={30} className="text-white" />
-          </div>
-          <h1 className="font-display text-[28px] leading-tight font-bold tracking-tight text-white mb-2">
-            BakeShopOS
-          </h1>
+          <img
+            src="/logo-horizontal.png"
+            alt="KEKI"
+            className="w-48 h-auto mb-5 drop-shadow-[0_4px_16px_rgba(0,0,0,0.25)]"
+          />
           <p className="text-white/80 text-[15px] leading-relaxed max-w-[280px]">
             Turn your Facebook Messenger orders into a smooth, organized shop.
           </p>
@@ -43,10 +41,11 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-accent-dark to-accent items-center justify-center p-16 relative overflow-hidden">
         <div className="absolute -bottom-24 -left-24 w-[28rem] h-[28rem] rounded-full bg-accent-light/20 blur-3xl" />
         <div className="relative z-10 text-white max-w-sm motion-safe:animate-fadeInUp">
-          <div className="w-14 h-14 rounded-control bg-white/15 flex items-center justify-center mb-6">
-            <Cake size={28} />
-          </div>
-          <h2 className="font-display text-4xl font-bold tracking-tight mb-3">BakeShopOS</h2>
+          <img
+            src="/logo-horizontal.png"
+            alt="KEKI"
+            className="w-64 h-auto mb-6 drop-shadow-[0_4px_16px_rgba(0,0,0,0.3)]"
+          />
           <p className="text-white/80 text-lg leading-relaxed">
             Manage every order with ease, from the first inquiry to pickup.
           </p>
