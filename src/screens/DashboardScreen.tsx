@@ -5,9 +5,11 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, ClipboardList, Clock, MessageCircle, ArrowUpRight } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
+import { Switch } from '../components/ui/Switch';
 import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
 import { formatPrice } from '../lib/currency';
+import { fetchShopProfile, setAcceptingOrders } from '../api/shopProfile';
 import type { OrderStatus } from '../types/catalog';
 
 /* Motion */
@@ -102,6 +104,10 @@ export function DashboardScreen() {
   const [recentOrders, setRecentOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [acceptingOrders, setAcceptingOrdersState] = useState(true);
+  const [acceptingOrdersLoaded, setAcceptingOrdersLoaded] = useState(false);
+  const [togglingAccepting, setTogglingAccepting] = useState(false);
+
   const shopName =
     session?.user?.user_metadata?.organization_name?.trim() || 'there';
   const hour = new Date().getHours();
@@ -115,9 +121,8 @@ export function DashboardScreen() {
       setLoading(true);
       const { start, end } = todayRange();
 
-      // All today's orders
       const { data: todayOrders } = await supabase
-        .from('orders')
+        .from('order_list_view')
         .select('id, customer_name, summary, total_amount, status, created_at')
         .eq('organization_id', organizationId)
         .gte('created_at', start)
@@ -137,7 +142,7 @@ export function DashboardScreen() {
         totalOrders: orders.length,
         revenueToday,
         pendingPickups,
-        unreadMessages: 0, // populated once messaging integration is live
+        unreadMessages: 0,
         completedOrders,
       });
 
@@ -148,6 +153,34 @@ export function DashboardScreen() {
     load();
   }, [organizationId]);
 
+  useEffect(() => {
+    if (!organizationId) return;
+    fetchShopProfile(organizationId)
+      .then((p) => {
+        setAcceptingOrdersState(p.accepting_orders);
+        setAcceptingOrdersLoaded(true);
+      })
+      .catch((err) => {
+        console.error('Failed to load shop status:', err);
+        setAcceptingOrdersLoaded(true);
+      });
+  }, [organizationId]);
+
+  async function handleToggleAccepting() {
+    if (!organizationId || togglingAccepting) return;
+    const next = !acceptingOrders;
+    setAcceptingOrdersState(next);
+    setTogglingAccepting(true);
+    try {
+      await setAcceptingOrders(organizationId, next);
+    } catch (err) {
+      console.error('Failed to update accepting orders status:', err);
+      setAcceptingOrdersState(!next);
+    } finally {
+      setTogglingAccepting(false);
+    }
+  }
+
   const pct =
     stats.totalOrders > 0
       ? Math.round((stats.completedOrders / stats.totalOrders) * 100)
@@ -157,7 +190,7 @@ export function DashboardScreen() {
     <ScreenShell>
       {/* Header */}
       <motion.div
-        className="flex items-start justify-between gap-4 mb-6"
+        className="flex items-start justify-between gap-4 mb-4"
         custom={0} variants={fadeUp} initial="hidden" animate="visible"
       >
         <div>
@@ -175,12 +208,46 @@ export function DashboardScreen() {
         </Link>
       </motion.div>
 
+      {/* Accepting orders status */}
+      {!acceptingOrdersLoaded ? (
+        <div className="h-[60px] rounded-[16px] bg-platinum/60 animate-pulse mb-4" aria-hidden="true" />
+      ) : (
+        <motion.div
+          custom={1} variants={fadeUp} initial="hidden" animate="visible"
+          className={`flex items-center justify-between gap-3 rounded-[16px] px-4 py-3 mb-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors duration-200 ${
+            acceptingOrders ? 'bg-white' : 'bg-amber-50'
+          }`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${acceptingOrders ? 'bg-green-500' : 'bg-amber-500'}`}
+              aria-hidden="true"
+            />
+            <div className="min-w-0">
+              <p className={`text-[14px] font-semibold truncate ${acceptingOrders ? 'text-accent-dark' : 'text-amber-800'}`}>
+                {acceptingOrders ? 'Accepting orders' : 'Not accepting orders'}
+              </p>
+              {!acceptingOrders && (
+                <p className="text-[12px] text-amber-700 truncate">
+                  Customers messaging you will be told you are closed.
+                </p>
+              )}
+            </div>
+          </div>
+          <Switch
+            checked={acceptingOrders}
+            onChange={handleToggleAccepting}
+            ariaLabel="Accepting orders"
+          />
+        </motion.div>
+      )}
+
       {/* Hero + stats */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-4 mb-4">
 
         {/* Hero revenue card */}
         <motion.div
-          custom={1} variants={fadeUp} initial="hidden" animate="visible"
+          custom={2} variants={fadeUp} initial="hidden" animate="visible"
           aria-busy={loading}
           className="lg:col-span-3 relative overflow-hidden rounded-[20px] bg-accent-dark p-6 md:p-7 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
         >
@@ -215,9 +282,9 @@ export function DashboardScreen() {
         {/* Supporting stats */}
         <div className="lg:col-span-2 grid grid-cols-3 lg:grid-cols-1 gap-3">
           {[
-            { label: 'Orders',   value: stats.totalOrders,    icon: ClipboardList, custom: 2 },
-            { label: 'Pending',  value: stats.pendingPickups, icon: Clock,         custom: 3 },
-            { label: 'Messages', value: stats.unreadMessages, icon: MessageCircle, custom: 4, to: '/messages' },
+            { label: 'Orders',   value: stats.totalOrders,    icon: ClipboardList, custom: 3 },
+            { label: 'Pending',  value: stats.pendingPickups, icon: Clock,         custom: 4 },
+            { label: 'Messages', value: stats.unreadMessages, icon: MessageCircle, custom: 5, to: '/messages' },
           ].map(({ label, value, icon: Icon, custom, to }) => {
             const isLink = Boolean(to);
             const inner = (
@@ -259,7 +326,7 @@ export function DashboardScreen() {
 
       {/* Recent orders */}
       <motion.div
-        custom={5} variants={fadeUp} initial="hidden" animate="visible"
+        custom={6} variants={fadeUp} initial="hidden" animate="visible"
         className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
       >
         <div className="flex items-center justify-between px-5 md:px-6 pt-5 pb-3">

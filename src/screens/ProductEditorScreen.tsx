@@ -143,7 +143,7 @@ export function ProductEditorScreen() {
       />
 
       <main
-        className="flex-1 px-5 md:px-10 max-w-5xl mx-auto w-full space-y-5"
+        className="flex-1 px-5 md:px-10 max-w-5xl mx-auto w-full pt-6 space-y-5"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
       >
 

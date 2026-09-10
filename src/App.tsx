@@ -12,6 +12,7 @@ import { ProductEditorScreen } from './screens/ProductEditorScreen';
 import { MessagesScreen } from './screens/MessagesScreen';
 import { ConversationDetailScreen } from './screens/ConversationDetailScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { ShopDetailsScreen } from './screens/ShopDetailsScreen';
 
 export default function App() {
   const { session, loading } = useAuth();
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/messages"   element={<MessagesScreen />}      />
           <Route path="/messages/:conversationId" element={<ConversationDetailScreen />} />
           <Route path="/settings"   element={<SettingsScreen />}      />
+          <Route path="/settings/shop" element={<ShopDetailsScreen />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

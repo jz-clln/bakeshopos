@@ -131,7 +131,11 @@ export function SettingsScreen() {
           General
         </p>
         <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
-          <SettingsRow icon={<Store size={17} className="text-accent-dark" />} label="Shop details" />
+          <SettingsRow
+            icon={<Store size={17} className="text-accent-dark" />}
+            label="Shop details"
+            to="/settings/shop"
+          />
           <SettingsRow icon={<Bell size={17} className="text-accent-dark" />} label="Notifications" />
           <SettingsRow icon={<ShieldCheck size={17} className="text-accent-dark" />} label="Privacy & security" />
         </div>
