@@ -8,6 +8,7 @@ export interface ConversationListItem {
   channel: 'facebook_messenger' | 'instagram' | 'manual';
   handler: 'ai' | 'human' | 'paused' | 'handoff_required';
   customer_name: string;
+  customer_avatar_url: string | null;
   last_message_preview: string | null;
   last_message_at: string | null;
   unread_count: number;
@@ -22,19 +23,41 @@ export async function fetchConversationList(organizationId: string): Promise<Con
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
   if (error) throw error;
-  return (data ?? []) as ConversationListItem[];
+  const conversations = (data ?? []) as Array<Omit<ConversationListItem, 'customer_avatar_url'>>;
+
+  if (conversations.length === 0) return [];
+
+  // conversation_list_view doesn't expose the customer's avatar, so
+  // fetch it directly from customers and merge it in here rather than
+  // touching a view whose full query we don't have on hand.
+  const customerIds = [...new Set(conversations.map((c) => c.customer_id))];
+  const { data: customers, error: customersError } = await supabase
+    .from('customers')
+    .select('id, facebook_profile_pic_url')
+    .in('id', customerIds);
+
+  if (customersError) throw customersError;
+  const avatarByCustomerId = new Map(
+    (customers ?? []).map((c) => [c.id, c.facebook_profile_pic_url as string | null])
+  );
+
+  return conversations.map((c) => ({
+    ...c,
+    customer_avatar_url: avatarByCustomerId.get(c.customer_id) ?? null,
+  }));
 }
 
 export interface ConversationDetail {
   id: string;
   handler: 'ai' | 'human' | 'paused' | 'handoff_required';
   customer_name: string;
+  customer_avatar_url: string | null;
 }
 
 export async function fetchConversationDetail(conversationId: string): Promise<ConversationDetail> {
   const { data, error } = await supabase
     .from('conversations')
-    .select('id, handler, customer_id, customers(full_name)')
+    .select('id, handler, customer_id, customers(full_name, facebook_profile_pic_url)')
     .eq('id', conversationId)
     .single();
 
@@ -43,6 +66,7 @@ export async function fetchConversationDetail(conversationId: string): Promise<C
     id: data.id,
     handler: data.handler,
     customer_name: (data as any).customers?.full_name ?? 'Customer',
+    customer_avatar_url: (data as any).customers?.facebook_profile_pic_url ?? null,
   };
 }
 

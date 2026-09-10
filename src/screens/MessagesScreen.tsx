@@ -147,7 +147,24 @@ export function MessagesScreen() {
                     className="flex items-center gap-3.5 px-5 py-4 cursor-pointer"
                   >
                     <div className="relative shrink-0">
-                      <div className="w-11 h-11 rounded-full bg-accent-light/40 flex items-center justify-center text-[12px] font-bold text-accent-dark">
+                      {convo.customer_avatar_url ? (
+                        <img
+                          src={convo.customer_avatar_url}
+                          alt=""
+                          className="w-11 h-11 rounded-full object-cover bg-platinum"
+                          onError={(e) => {
+                            // Facebook picture URLs can expire or 404 occasionally.
+                            // Falling back to initials keeps the row from breaking.
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className={`w-11 h-11 rounded-full bg-accent-light/40 flex items-center justify-center text-[12px] font-bold text-accent-dark ${
+                          convo.customer_avatar_url ? 'hidden' : ''
+                        }`}
+                      >
                         {initials(convo.customer_name)}
                       </div>
                       <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-white">
