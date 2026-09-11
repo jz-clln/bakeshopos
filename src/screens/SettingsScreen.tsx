@@ -14,7 +14,7 @@ import {
 import { Link } from 'react-router-dom';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
-import { getFacebookConnection, startFacebookConnect, type FacebookConnection } from '../api/facebook';
+import { getFacebookConnection, startFacebookConnect, disconnectFacebook, type FacebookConnection } from '../api/facebook';
 import { fetchShopIdentity, type ShopIdentity } from '../api/shopProfile';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -66,6 +66,7 @@ export function SettingsScreen() {
   const [fbConnection, setFbConnection] = useState<FacebookConnection | null>(null);
   const [loadingFb, setLoadingFb] = useState(true);
   const [fbError, setFbError] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -92,8 +93,23 @@ export function SettingsScreen() {
       console.error(err);
       // TODO: replace with a real toast/snackbar component once one
       // exists in the codebase — for now this renders as inline text
-      // under the Facebook row (see SettingsRow usage below).
+      // under the Facebook row.
       setFbError('Could not start Facebook connection. Please try again.');
+    }
+  }
+
+  async function handleDisconnectFacebook() {
+    if (!organizationId) return;
+    setDisconnecting(true);
+    setFbError(null);
+    try {
+      await disconnectFacebook(organizationId);
+      setFbConnection(null);
+    } catch (err) {
+      console.error('Failed to disconnect Facebook:', err);
+      setFbError('Could not disconnect. Please try again.');
+    } finally {
+      setDisconnecting(false);
     }
   }
 
@@ -104,6 +120,8 @@ export function SettingsScreen() {
     : fbConnection?.status === 'needs_reconnect'
     ? 'Needs reconnecting'
     : 'Not connected';
+
+  const isFbConnected = fbConnection?.status === 'connected';
 
   return (
     <ScreenShell>
@@ -147,12 +165,42 @@ export function SettingsScreen() {
             description="Coming soon"
             disabled
           />
-          <SettingsRow
-            icon={<Facebook size={17} className="text-accent-dark" />}
-            label="Facebook & Messenger"
-            description={fbError ?? fbDescription}
-            onClick={fbConnection?.status === 'connected' ? undefined : handleConnectFacebook}
-          />
+
+          {isFbConnected ? (
+            <div className="px-5 py-3">
+              <div className="flex items-center gap-4 min-h-[40px]">
+                <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
+                  <Facebook size={17} className="text-accent-dark" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-medium text-accent-dark">Facebook & Messenger</p>
+                  <p className="text-[13px] text-olive">{fbError ?? fbDescription}</p>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-2 pl-12">
+                <button
+                  onClick={handleConnectFacebook}
+                  className="text-[13px] font-semibold text-accent-dark"
+                >
+                  Switch Page
+                </button>
+                <button
+                  onClick={handleDisconnectFacebook}
+                  disabled={disconnecting}
+                  className="text-[13px] font-semibold text-red-500 disabled:opacity-50"
+                >
+                  {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <SettingsRow
+              icon={<Facebook size={17} className="text-accent-dark" />}
+              label="Facebook & Messenger"
+              description={fbError ?? fbDescription}
+              onClick={handleConnectFacebook}
+            />
+          )}
         </div>
       </motion.section>
 

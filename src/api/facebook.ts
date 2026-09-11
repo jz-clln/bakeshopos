@@ -57,3 +57,17 @@ export async function startFacebookConnect(organizationId: string) {
 
   window.location.href = data.oauthUrl;
 }
+
+/**
+ * Removes the current Page connection entirely. To SWITCH to a
+ * different Page, just call startFacebookConnect again — the
+ * callback now deletes the old row before saving the new one, so no
+ * explicit disconnect step is needed first.
+ */
+export async function disconnectFacebook(organizationId: string): Promise<void> {
+  const { error } = await supabase.functions.invoke('facebook-disconnect', {
+    body: { organizationId },
+  });
+
+  if (error) throw error;
+}
