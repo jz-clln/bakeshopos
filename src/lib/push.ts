@@ -48,7 +48,12 @@ export async function subscribeToPush(): Promise<PushSubscription> {
   await navigator.serviceWorker.ready;
   return registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    // TypeScript's lib.dom types require the applicationServerKey to
+    // be backed by a plain ArrayBuffer, not the wider ArrayBufferLike
+    // that Uint8Array's type now allows (a TS 5.6+ strictness change,
+    // not a real runtime concern — new Uint8Array() here is never
+    // actually SharedArrayBuffer-backed).
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
   });
 }
 
