@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cake } from 'lucide-react';
 import { SignInForm } from '../components/auth/SignInForm';
 import { SignUpFlow } from '../components/auth/SignUpFlow';
 
@@ -23,13 +22,12 @@ export function AuthScreen() {
         transition={{ duration: 0.4, ease: EASE }}
         className="flex flex-col items-center gap-3 mb-10"
       >
-        <div className="w-16 h-16 rounded-[20px] bg-accent-dark flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-          <Cake size={28} className="text-white" strokeWidth={1.75} />
-        </div>
-        <div className="text-center">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-accent-dark">Keki</h1>
-          <p className="text-sm text-olive mt-0.5">Your bakery, beautifully managed.</p>
-        </div>
+        <img
+          src="/logo-horizontal.png"
+          alt="KEKI"
+          className="w-44 h-auto drop-shadow-[0_4px_16px_rgba(0,0,0,0.10)]"
+        />
+        <p className="text-sm text-olive mt-0.5">Your bakery, beautifully managed.</p>
       </motion.div>
 
       {/* Form card */}

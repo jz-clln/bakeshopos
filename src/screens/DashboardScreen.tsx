@@ -193,9 +193,9 @@ export function DashboardScreen() {
         className="flex items-start justify-between gap-4 mb-4"
         custom={0} variants={fadeUp} initial="hidden" animate="visible"
       >
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold tracking-widest text-olive uppercase mb-1">Today</p>
-          <h1 className="font-display text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark leading-tight">
+          <h1 className="font-display text-[22px] sm:text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark leading-tight truncate">
             {greeting}, {shopName} 👋
           </h1>
         </div>
