@@ -85,19 +85,59 @@ export async function fetchShopIdentity(organizationId: string): Promise<ShopIde
   return data as ShopIdentity;
 }
 
+const LOGO_BUCKET = 'shop-logos';
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 export class InvalidLogoFileError extends Error {}
 
 /**
- * Uploads a new shop logo to the `shop-logos` bucket and points the
- * organization row at it. The storage path is prefixed with the
- * organization id because shop_logos_insert_own_org reads that first
- * path segment to check membership — don't change the path shape
- * without updating the migration too.
+ * Pulls the storage path back out of a public URL so we can target it
+ * for deletion. Supabase public URLs look like
+ * `${SUPABASE_URL}/storage/v1/object/public/shop-logos/<path>` — if
+ * that marker isn't present (e.g. a hand-edited or external URL),
+ * there's nothing safe to delete, so this returns null rather than
+ * guessing.
  */
-export async function uploadShopLogo(organizationId: string, file: File): Promise<string> {
+function extractLogoStoragePath(logoUrl: string): string | null {
+  const marker = `/storage/v1/object/public/${LOGO_BUCKET}/`;
+  const idx = logoUrl.indexOf(marker);
+  if (idx === -1) return null;
+  return decodeURIComponent(logoUrl.slice(idx + marker.length));
+}
+
+/**
+ * Best-effort cleanup — by the time this runs, the org row already
+ * points somewhere else (a new logo, or nothing), so a failure here
+ * is a storage-cost problem, not a correctness one. Logged instead of
+ * thrown so it never blocks the user-facing flow. Most likely cause
+ * of a failure is the shop_logos_delete_own_org policy missing.
+ */
+async function deleteLogoFile(path: string): Promise<void> {
+  const { error } = await supabase.storage.from(LOGO_BUCKET).remove([path]);
+  if (error) {
+    console.warn('Failed to delete old shop logo file:', path, error);
+  }
+}
+
+/**
+ * Uploads a new shop logo to the `shop-logos` bucket, points the
+ * organization row at it, then deletes the previous file (if any).
+ * The storage path is prefixed with the organization id because
+ * shop_logos_insert_own_org / shop_logos_delete_own_org both read
+ * that first path segment to check membership — don't change the
+ * path shape without updating the migrations too.
+ *
+ * Pass the profile's current logo_url as `previousLogoUrl` so the old
+ * file can be cleaned up. Deletion only happens AFTER the DB row is
+ * confirmed pointing at the new file — never before — so a failed
+ * update can't leave the org referencing a file that's already gone.
+ */
+export async function uploadShopLogo(
+  organizationId: string,
+  file: File,
+  previousLogoUrl?: string | null
+): Promise<string> {
   if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
     throw new InvalidLogoFileError('Please upload a PNG, JPEG, or WEBP image.');
   }
@@ -109,12 +149,12 @@ export async function uploadShopLogo(organizationId: string, file: File): Promis
   const path = `${organizationId}/logo-${Date.now()}.${ext}`;
 
   const { error: uploadError } = await supabase.storage
-    .from('shop-logos')
+    .from(LOGO_BUCKET)
     .upload(path, file, { upsert: false, contentType: file.type });
 
   if (uploadError) throw uploadError;
 
-  const { data: publicUrlData } = supabase.storage.from('shop-logos').getPublicUrl(path);
+  const { data: publicUrlData } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
   const logoUrl = publicUrlData.publicUrl;
 
   const { error: updateError } = await supabase
@@ -124,21 +164,34 @@ export async function uploadShopLogo(organizationId: string, file: File): Promis
 
   if (updateError) throw updateError;
 
+  if (previousLogoUrl) {
+    const oldPath = extractLogoStoragePath(previousLogoUrl);
+    if (oldPath && oldPath !== path) {
+      await deleteLogoFile(oldPath);
+    }
+  }
+
   return logoUrl;
 }
 
 /**
  * Clears the shop's logo, reverting Settings/Messenger to the
- * initial-letter fallback. Doesn't delete the old file from storage —
- * orphaned objects in shop-logos are cheap and harmless, and deleting
- * on every replace risks a race with in-flight requests still
- * pointing at the old URL.
+ * initial-letter fallback, and deletes the underlying file.
+ * Pass the profile's current logo_url as `previousLogoUrl` — same
+ * cleanup-after-confirmed-write ordering as uploadShopLogo.
  */
-export async function removeShopLogo(organizationId: string): Promise<void> {
+export async function removeShopLogo(organizationId: string, previousLogoUrl?: string | null): Promise<void> {
   const { error } = await supabase
     .from('organizations')
     .update({ logo_url: null })
     .eq('id', organizationId);
 
   if (error) throw error;
+
+  if (previousLogoUrl) {
+    const oldPath = extractLogoStoragePath(previousLogoUrl);
+    if (oldPath) {
+      await deleteLogoFile(oldPath);
+    }
+  }
 }

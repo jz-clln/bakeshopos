@@ -18,11 +18,11 @@ export function TermsConsent({ checked, onChange }: TermsConsentProps) {
       />
       <span className="text-[13px] text-olive leading-relaxed">
         I agree to the{' '}
-        <Link to="/terms" target="_blank" className="text-accent-dark font-semibold underline">
+        <Link to="/terms" className="text-accent-dark font-semibold underline">
           Terms and Conditions
         </Link>{' '}
         and{' '}
-        <Link to="/privacy" target="_blank" className="text-accent-dark font-semibold underline">
+        <Link to="/privacy" className="text-accent-dark font-semibold underline">
           Privacy Policy
         </Link>
         .

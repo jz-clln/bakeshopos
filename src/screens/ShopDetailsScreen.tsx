@@ -101,12 +101,12 @@ export function ShopDetailsScreen() {
   async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-selecting the same file later
-    if (!file || !organizationId) return;
+    if (!file || !organizationId || !profile) return;
 
     setLogoError(null);
     setUploadingLogo(true);
     try {
-      const logoUrl = await uploadShopLogo(organizationId, file);
+      const logoUrl = await uploadShopLogo(organizationId, file, profile.logo_url);
       setProfile((prev) => (prev ? { ...prev, logo_url: logoUrl } : prev));
     } catch (err) {
       console.error('Failed to upload shop logo:', err);
@@ -123,7 +123,7 @@ export function ShopDetailsScreen() {
     setLogoError(null);
     setUploadingLogo(true);
     try {
-      await removeShopLogo(organizationId);
+      await removeShopLogo(organizationId, profile.logo_url);
       setProfile((prev) => (prev ? { ...prev, logo_url: null } : prev));
     } catch (err) {
       console.error('Failed to remove shop logo:', err);

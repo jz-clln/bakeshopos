@@ -306,7 +306,6 @@ function SecurityLinkRow({
   return (
     <Link
       to={to}
-      target="_blank"
       className="flex items-center gap-4 px-5 min-h-[56px] py-3 transition-colors duration-150 hover:bg-platinum/20 active:bg-platinum/30"
     >
       <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
