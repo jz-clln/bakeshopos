@@ -108,8 +108,14 @@ export function DashboardScreen() {
   const [acceptingOrdersLoaded, setAcceptingOrdersLoaded] = useState(false);
   const [togglingAccepting, setTogglingAccepting] = useState(false);
 
-  const shopName =
-    session?.user?.user_metadata?.organization_name?.trim() || 'there';
+  // Seeded from the sign-up snapshot so the greeting isn't blank on
+  // first paint, then overwritten below with the real, current shop
+  // name the moment fetchShopProfile resolves — the same source of
+  // truth Shop Details reads from and writes to.
+  const [shopName, setShopName] = useState<string>(
+    session?.user?.user_metadata?.organization_name?.trim() || 'there'
+  );
+
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -159,6 +165,7 @@ export function DashboardScreen() {
       .then((p) => {
         setAcceptingOrdersState(p.accepting_orders);
         setAcceptingOrdersLoaded(true);
+        if (p.name?.trim()) setShopName(p.name.trim());
       })
       .catch((err) => {
         console.error('Failed to load shop status:', err);
@@ -215,20 +222,31 @@ export function DashboardScreen() {
         <motion.div
           custom={1} variants={fadeUp} initial="hidden" animate="visible"
           className={`flex items-center justify-between gap-3 rounded-[16px] px-4 py-3 md:py-2.5 mb-4 md:mb-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors duration-200 ${
-            acceptingOrders ? 'bg-white' : 'bg-amber-50'
+            acceptingOrders ? 'bg-white' : 'bg-rose-50'
           }`}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${acceptingOrders ? 'bg-green-500' : 'bg-amber-500'}`}
-              aria-hidden="true"
-            />
+            {/* Pulsing ring + solid glowing dot — same "live status" pattern, just recolored per state */}
+            <span className="relative flex w-2.5 h-2.5 shrink-0">
+              <span
+                className={`animate-ping absolute inline-flex w-full h-full rounded-full opacity-60 ${
+                  acceptingOrders ? 'bg-green-400' : 'bg-rose-400'
+                }`}
+              />
+              <span
+                className={`relative inline-flex w-2.5 h-2.5 rounded-full ${
+                  acceptingOrders
+                    ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.22),0_0_10px_3px_rgba(34,197,94,0.65)]'
+                    : 'bg-rose-400 shadow-[0_0_0_3px_rgba(251,113,133,0.22),0_0_10px_3px_rgba(251,113,133,0.55)]'
+                }`}
+              />
+            </span>
             <div className="min-w-0">
-              <p className={`text-[14px] font-semibold truncate ${acceptingOrders ? 'text-accent-dark' : 'text-amber-800'}`}>
+              <p className={`text-[14px] font-semibold truncate ${acceptingOrders ? 'text-accent-dark' : 'text-rose-700'}`}>
                 {acceptingOrders ? 'Accepting orders' : 'Not accepting orders'}
               </p>
               {!acceptingOrders && (
-                <p className="text-[12px] text-amber-700 truncate">
+                <p className="text-[12px] text-rose-500 truncate">
                   Customers messaging you will be told you are closed.
                 </p>
               )}

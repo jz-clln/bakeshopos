@@ -167,8 +167,12 @@ export function SettingsScreen() {
             label="Shop details"
             to="/settings/shop"
           />
-          <SettingsRow icon={<Bell size={17} className="text-accent-dark" />} label="Notifications" />
-           <SettingsRow
+          <SettingsRow
+            icon={<Bell size={17} className="text-accent-dark" />}
+            label="Notifications"
+            to="/settings/notifications"
+          />
+          <SettingsRow
             icon={<ShieldCheck size={17} className="text-accent-dark" />}
             label="Privacy & security"
             to="/settings/privacy"

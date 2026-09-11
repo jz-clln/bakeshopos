@@ -13,10 +13,11 @@ import { MessagesScreen } from './screens/MessagesScreen';
 import { ConversationDetailScreen } from './screens/ConversationDetailScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ShopDetailsScreen } from './screens/ShopDetailsScreen';
+import { PrivacySecurityScreen } from './screens/PrivacySecurityScreen';
+import { NotificationsScreen } from './screens/NotificationsScreen';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { TermsScreen } from './screens/TermsScreen';
 import { CookiesPolicyScreen } from './screens/CookiesPolicyScreen';
-import { PrivacySecurityScreen } from './screens/PrivacySecurityScreen';
 
 export default function App() {
   const { session, loading } = useAuth();
@@ -55,6 +56,7 @@ export default function App() {
               <Route path="/messages/:conversationId" element={<ConversationDetailScreen />} />
               <Route path="/settings"   element={<SettingsScreen />}      />
               <Route path="/settings/shop" element={<ShopDetailsScreen />} />
+              <Route path="/settings/notifications" element={<NotificationsScreen />} />
               <Route path="/settings/privacy" element={<PrivacySecurityScreen />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
