@@ -20,9 +20,9 @@ export function AppShell() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-platinum/30 md:flex">
+    <div className="min-h-[100dvh] md:h-dvh bg-platinum/30 md:flex md:overflow-hidden">
       <Sidebar navItems={navItems} />
-      <main className="flex-1 min-w-0 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0">
+      <main className="flex-1 min-w-0 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0 md:h-dvh md:overflow-y-auto">
         <Outlet />
       </main>
       <TabBar navItems={navItems} />

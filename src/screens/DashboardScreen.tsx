@@ -190,7 +190,7 @@ export function DashboardScreen() {
     <ScreenShell>
       {/* Header */}
       <motion.div
-        className="flex items-start justify-between gap-4 mb-4"
+        className="flex items-start justify-between gap-4 mb-4 md:mb-3"
         custom={0} variants={fadeUp} initial="hidden" animate="visible"
       >
         <div className="min-w-0 flex-1">
@@ -210,11 +210,11 @@ export function DashboardScreen() {
 
       {/* Accepting orders status */}
       {!acceptingOrdersLoaded ? (
-        <div className="h-[60px] rounded-[16px] bg-platinum/60 animate-pulse mb-4" aria-hidden="true" />
+        <div className="h-[60px] md:h-[52px] rounded-[16px] bg-platinum/60 animate-pulse mb-4 md:mb-3" aria-hidden="true" />
       ) : (
         <motion.div
           custom={1} variants={fadeUp} initial="hidden" animate="visible"
-          className={`flex items-center justify-between gap-3 rounded-[16px] px-4 py-3 mb-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors duration-200 ${
+          className={`flex items-center justify-between gap-3 rounded-[16px] px-4 py-3 md:py-2.5 mb-4 md:mb-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors duration-200 ${
             acceptingOrders ? 'bg-white' : 'bg-amber-50'
           }`}
         >
@@ -243,13 +243,13 @@ export function DashboardScreen() {
       )}
 
       {/* Hero + stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-4 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-3 mb-4 md:mb-3">
 
         {/* Hero revenue card */}
         <motion.div
           custom={2} variants={fadeUp} initial="hidden" animate="visible"
           aria-busy={loading}
-          className="lg:col-span-3 relative overflow-hidden rounded-[20px] bg-accent-dark p-6 md:p-7 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
+          className="lg:col-span-3 relative overflow-hidden rounded-[20px] bg-accent-dark p-6 md:p-5 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
         >
           <div className="pointer-events-none absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5" />
           <div className="pointer-events-none absolute -bottom-14 -right-4 w-64 h-64 rounded-full bg-white/[0.03]" />
@@ -257,9 +257,9 @@ export function DashboardScreen() {
           <p className="text-white/60 text-sm font-medium mb-1">Revenue today</p>
 
           {loading ? (
-            <div className="h-10 md:h-12 w-44 bg-white/15 rounded-[8px] animate-pulse mb-5" aria-hidden="true" />
+            <div className="h-10 md:h-9 w-44 bg-white/15 rounded-[8px] animate-pulse mb-5 md:mb-3" aria-hidden="true" />
           ) : (
-            <p className="font-display text-4xl md:text-5xl font-bold text-white tracking-tight mb-5">
+            <p className="font-display text-4xl md:text-3xl font-bold text-white tracking-tight mb-5 md:mb-3">
               {formatPrice(stats.revenueToday)}
             </p>
           )}
@@ -280,7 +280,7 @@ export function DashboardScreen() {
         </motion.div>
 
         {/* Supporting stats */}
-        <div className="lg:col-span-2 grid grid-cols-3 lg:grid-cols-1 gap-3">
+        <div className="lg:col-span-2 grid grid-cols-3 lg:grid-cols-1 gap-3 md:gap-2">
           {[
             { label: 'Orders',   value: stats.totalOrders,    icon: ClipboardList, custom: 3 },
             { label: 'Pending',  value: stats.pendingPickups, icon: Clock,         custom: 4 },
@@ -294,18 +294,18 @@ export function DashboardScreen() {
                 whileHover={isLink ? { y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' } : undefined}
                 whileTap={isLink ? { scale: 0.97 } : undefined}
                 aria-busy={loading}
-                className={`bg-white rounded-[16px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] flex flex-col justify-between ${
+                className={`bg-white rounded-[16px] p-4 md:p-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] flex flex-col justify-between ${
                   isLink ? 'cursor-pointer' : 'cursor-default'
                 }`}
               >
-                <div className="w-7 h-7 rounded-full bg-platinum flex items-center justify-center mb-3">
+                <div className="w-7 h-7 rounded-full bg-platinum flex items-center justify-center mb-3 md:mb-2">
                   <Icon size={13} className="text-accent-dark" strokeWidth={2} />
                 </div>
                 <div>
                   {loading ? (
                     <div className="h-5 w-8 bg-platinum/70 rounded animate-pulse mb-1" aria-hidden="true" />
                   ) : (
-                    <p className="text-xl font-bold text-accent-dark leading-none mb-0.5 truncate">{value}</p>
+                    <p className="text-xl md:text-lg font-bold text-accent-dark leading-none mb-0.5 truncate">{value}</p>
                   )}
                   <p className="text-xs text-olive truncate">{label}</p>
                 </div>
@@ -329,7 +329,7 @@ export function DashboardScreen() {
         custom={6} variants={fadeUp} initial="hidden" animate="visible"
         className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
       >
-        <div className="flex items-center justify-between px-5 md:px-6 pt-5 pb-3">
+        <div className="flex items-center justify-between px-5 md:px-6 pt-5 md:pt-4 pb-3 md:pb-2">
           <h2 className="font-display text-base font-semibold text-accent-dark tracking-tight">
             Recent orders
           </h2>
@@ -344,8 +344,8 @@ export function DashboardScreen() {
         {loading ? (
           <div className="divide-y divide-platinum/60" aria-busy="true" aria-label="Loading recent orders">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 animate-pulse">
-                <div className="w-9 h-9 rounded-full bg-platinum/80 shrink-0" />
+              <div key={i} className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 md:py-2.5 animate-pulse">
+                <div className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-platinum/80 shrink-0" />
                 <div className="flex-1 space-y-2">
                   <div className="h-3 bg-platinum/80 rounded w-1/3" />
                   <div className="h-3 bg-platinum/60 rounded w-2/3" />
@@ -367,9 +367,9 @@ export function DashboardScreen() {
               <motion.div key={order.id} variants={listRow}>
                 <Link
                   to={`/orders/${order.id}`}
-                  className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 min-h-[56px] transition-colors duration-150 hover:bg-platinum/10 active:bg-platinum/20"
+                  className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 md:py-2.5 min-h-[56px] md:min-h-[48px] transition-colors duration-150 hover:bg-platinum/10 active:bg-platinum/20"
                 >
-                  <div className="w-9 h-9 rounded-full bg-accent-light/40 flex items-center justify-center text-[11px] font-bold text-accent-dark shrink-0 tracking-wide">
+                  <div className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-accent-light/40 flex items-center justify-center text-[11px] font-bold text-accent-dark shrink-0 tracking-wide">
                     {initials(order.customer_name)}
                   </div>
                   <div className="min-w-0 flex-1">

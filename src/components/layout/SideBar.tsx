@@ -2,7 +2,6 @@
 
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useAuth } from '../../lib/auth-context';
 import type { NavItem } from '../../config/navigation';
 
 interface SidebarProps {
@@ -10,11 +9,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({ navItems }: SidebarProps) {
-  const { session } = useAuth();
-
-  const shopName = session?.user?.user_metadata?.organization_name?.trim() || 'Your Shop';
-  const shopInitial = shopName.charAt(0).toUpperCase();
-
   return (
     <motion.aside
       initial={{ opacity: 0, x: -16 }}
@@ -66,16 +60,6 @@ export function Sidebar({ navItems }: SidebarProps) {
           </NavLink>
         ))}
       </nav>
-
-      {/* Shop identity */}
-      <div className="px-3 pb-6 pt-4 border-t border-platinum/70">
-        <div className="flex items-center gap-3 px-3 py-2 rounded-[12px]">
-          <div className="w-8 h-8 rounded-full bg-accent-light/50 flex items-center justify-center text-xs font-bold text-accent-dark shrink-0">
-            {shopInitial}
-          </div>
-          <span className="text-[14px] font-medium text-accent-dark truncate">{shopName}</span>
-        </div>
-      </div>
     </motion.aside>
   );
 }
