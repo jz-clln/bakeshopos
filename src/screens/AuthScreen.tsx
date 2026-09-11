@@ -27,7 +27,6 @@ export function AuthScreen() {
           alt="KEKI"
           className="w-44 h-auto drop-shadow-[0_4px_16px_rgba(0,0,0,0.10)]"
         />
-        <p className="text-sm text-olive mt-0.5">Your bakery, beautifully managed.</p>
       </motion.div>
 
       {/* Form card */}
