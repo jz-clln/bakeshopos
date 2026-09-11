@@ -50,6 +50,7 @@ export async function fetchConversationList(organizationId: string): Promise<Con
 export interface ConversationDetail {
   id: string;
   handler: 'ai' | 'human' | 'paused' | 'handoff_required';
+  customer_id: string;
   customer_name: string;
   customer_avatar_url: string | null;
 }
@@ -65,6 +66,7 @@ export async function fetchConversationDetail(conversationId: string): Promise<C
   return {
     id: data.id,
     handler: data.handler,
+    customer_id: data.customer_id,
     customer_name: (data as any).customers?.full_name ?? 'Customer',
     customer_avatar_url: (data as any).customers?.facebook_profile_pic_url ?? null,
   };

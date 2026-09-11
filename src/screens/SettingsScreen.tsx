@@ -100,7 +100,7 @@ export function SettingsScreen() {
   const fbDescription = loadingFb
     ? 'Checking…'
     : fbConnection?.status === 'connected'
-    ? `Connected — ${fbConnection.pageName}`
+    ? `Connected | ${fbConnection.pageName}`
     : fbConnection?.status === 'needs_reconnect'
     ? 'Needs reconnecting'
     : 'Not connected';

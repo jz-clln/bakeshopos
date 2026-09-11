@@ -8,6 +8,7 @@ import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { getFacebookConnection } from '../api/facebook';
 import { fetchConversationList, type ConversationListItem } from '../api/messages';
+import { getAvatarPreset } from '../lib/avatarPresets';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -139,62 +140,69 @@ export function MessagesScreen() {
                 className="divide-y divide-platinum/60"
                 variants={listContainer} initial="hidden" animate="visible"
               >
-                {conversations.map((convo) => (
-                  <motion.div
-                    key={convo.id} variants={listRow}
-                    whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
-                    onClick={() => navigate(`/messages/${convo.id}`)}
-                    className="flex items-center gap-3.5 px-5 py-4 cursor-pointer"
-                  >
-                    <div className="relative shrink-0">
-                      {convo.customer_avatar_url ? (
-                        <img
-                          src={convo.customer_avatar_url}
-                          alt=""
-                          className="w-11 h-11 rounded-full object-cover bg-platinum"
-                          onError={(e) => {
-                            // Facebook picture URLs can expire or 404 occasionally.
-                            // Falling back to initials keeps the row from breaking.
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                          }}
-                        />
-                      ) : null}
-                      <div
-                        className={`w-11 h-11 rounded-full bg-accent-light/40 flex items-center justify-center text-[12px] font-bold text-accent-dark ${
-                          convo.customer_avatar_url ? 'hidden' : ''
-                        }`}
-                      >
-                        {initials(convo.customer_name)}
-                      </div>
-                      <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-white">
-                        <Facebook size={10} className="text-white" />
-                      </div>
-                    </div>
+                {conversations.map((convo) => {
+                  const hasAvatar = !!convo.customer_avatar_url;
+                  const displayName = hasAvatar ? convo.customer_name : 'Customer';
+                  const preset = getAvatarPreset(convo.customer_id);
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                        <p className={`text-[15px] truncate ${convo.unread_count > 0 ? 'font-bold text-accent-dark' : 'font-semibold text-accent-dark'}`}>
-                          {convo.customer_name}
+                  return (
+                    <motion.div
+                      key={convo.id} variants={listRow}
+                      whileTap={{ backgroundColor: 'rgba(0,0,0,0.015)' }}
+                      onClick={() => navigate(`/messages/${convo.id}`)}
+                      className="flex items-center gap-3.5 px-5 py-4 cursor-pointer"
+                    >
+                      <div className="relative shrink-0">
+                        {hasAvatar ? (
+                          <img
+                            src={convo.customer_avatar_url!}
+                            alt=""
+                            className="w-11 h-11 rounded-full object-cover bg-platinum"
+                            onError={(e) => {
+                              // Facebook picture URLs can expire or 404 occasionally.
+                              // Falling back to a preset avatar keeps the row from breaking.
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className={`w-11 h-11 rounded-full flex items-center justify-center text-[18px] ${
+                            hasAvatar ? 'hidden' : ''
+                          }`}
+                          style={{ backgroundColor: preset.bg }}
+                        >
+                          {preset.emoji}
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-white">
+                          <Facebook size={10} className="text-white" />
+                        </div>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                          <p className={`text-[15px] truncate ${convo.unread_count > 0 ? 'font-bold text-accent-dark' : 'font-semibold text-accent-dark'}`}>
+                            {displayName}
+                          </p>
+                          {convo.last_message_at && (
+                            <span className="text-[12px] text-olive shrink-0">
+                              {timeAgo(convo.last_message_at)}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-[13px] truncate ${convo.unread_count > 0 ? 'text-accent-dark font-medium' : 'text-olive'}`}>
+                          {convo.last_message_preview ?? 'No messages yet'}
                         </p>
-                        {convo.last_message_at && (
-                          <span className="text-[12px] text-olive shrink-0">
-                            {timeAgo(convo.last_message_at)}
-                          </span>
-                        )}
                       </div>
-                      <p className={`text-[13px] truncate ${convo.unread_count > 0 ? 'text-accent-dark font-medium' : 'text-olive'}`}>
-                        {convo.last_message_preview ?? 'No messages yet'}
-                      </p>
-                    </div>
 
-                    {convo.unread_count > 0 && (
-                      <div className="w-5 h-5 rounded-full bg-accent-dark flex items-center justify-center shrink-0">
-                        <span className="text-[10px] font-bold text-white">{convo.unread_count}</span>
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
+                      {convo.unread_count > 0 && (
+                        <div className="w-5 h-5 rounded-full bg-accent-dark flex items-center justify-center shrink-0">
+                          <span className="text-[10px] font-bold text-white">{convo.unread_count}</span>
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             </AnimatePresence>
           )}
@@ -202,11 +210,6 @@ export function MessagesScreen() {
       )}
     </ScreenShell>
   );
-}
-
-function initials(name: string) {
-  const p = (name ?? '').trim().split(/\s+/);
-  return ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase();
 }
 
 function timeAgo(iso: string): string {

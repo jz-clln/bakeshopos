@@ -16,6 +16,7 @@ import {
 import { uploadMessageAttachment } from '../api/attachments';
 import { useAuth } from '../lib/auth-context';
 import { EmojiPicker } from '../components/messages/EmojiPicker';
+import { getAvatarPreset } from '../lib/avatarPresets';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -40,6 +41,7 @@ export function ConversationDetailScreen() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [switchingHandler, setSwitchingHandler] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   // Selected image staged for sending, plus a local preview URL —
   // separate from the uploaded state, since the file isn't uploaded
@@ -151,6 +153,10 @@ export function ConversationDetailScreen() {
   const showLetAiHandle = conversation && conversation.handler !== 'ai';
   const canSend = (draft.trim().length > 0 || !!pendingImage) && !sending;
 
+  const hasAvatar = !!conversation?.customer_avatar_url && !avatarFailed;
+  const headerName = loading ? 'Loading…' : hasAvatar ? conversation?.customer_name : 'Customer';
+  const preset = conversation ? getAvatarPreset(conversation.customer_id) : null;
+
   return (
     <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-platinum/30">
       {/* Header */}
@@ -170,9 +176,33 @@ export function ConversationDetailScreen() {
           >
             <ArrowLeft size={17} className="text-olive" />
           </button>
+
+          {!loading && conversation && (
+            <div className="relative shrink-0">
+              {hasAvatar ? (
+                <img
+                  src={conversation.customer_avatar_url!}
+                  alt=""
+                  className="w-9 h-9 rounded-full object-cover bg-platinum"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-[15px]"
+                  style={{ backgroundColor: preset?.bg }}
+                >
+                  {preset?.emoji}
+                </div>
+              )}
+              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-white">
+                <Facebook size={8} className="text-white" />
+              </div>
+            </div>
+          )}
+
           <div className="min-w-0 flex-1">
             <p className="font-display text-[19px] font-bold tracking-tight text-accent-dark truncate">
-              {loading ? 'Loading…' : conversation?.customer_name}
+              {headerName}
             </p>
             <div className="flex items-center gap-1.5">
               <Facebook size={11} className="text-blue-600" />
