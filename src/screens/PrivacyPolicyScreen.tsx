@@ -1,7 +1,7 @@
 // File: app/src/screens/PrivacyPolicyScreen.tsx
 //
 // PLACEHOLDER VALUES TO REPLACE BEFORE PUBLISHING: your registered
-// business or entity name, contact email, and business address.
+// business or entity name and business address.
 // Have a Philippine lawyer or DPO review this before it goes live.
 
 import { LegalDocument } from '../components/legal/LegalDocument';
@@ -81,7 +81,7 @@ export function PrivacyPolicyScreen() {
       <ul>
         <li><strong>Supabase</strong>, our database and file storage provider, which hosts account, order, and message data, including payment proof images.</li>
         <li><strong>OpenAI</strong>, which processes message content to generate the AI assistant's replies.</li>
-        <li><strong>Meta Platforms, Inc. (Facebook)</strong>, through whose Messenger Platform and Graph API Customer conversations take place.</li>
+        <li><strong>Meta Platforms, Inc. (Facebook) and (Messenger)</strong>, through whose Messenger Platform and Graph API Customer conversations take place.</li>
       </ul>
       <p>
         We do not sell personal information, and we do not use data obtained through Facebook
@@ -115,7 +115,7 @@ export function PrivacyPolicyScreen() {
         <li>File a complaint with the National Privacy Commission (NPC) if you believe your rights have been violated.</li>
       </ul>
       <p>
-        To exercise any of these rights, contact us at [CONTACT EMAIL]. If you are a Customer,
+        To exercise any of these rights, contact us at kekiai@gmail.com. If you are a Customer,
         you may also raise requests directly with the shop you messaged.
       </p>
 

@@ -37,7 +37,7 @@ export function LegalDocument({ title, lastUpdated, children }: LegalDocumentPro
       <motion.div
         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.26, ease: EASE }}
-        className="flex items-center gap-3 mb-6"
+        className="flex items-center gap-3 mb-3"
       >
         <button
           onClick={handleBack}

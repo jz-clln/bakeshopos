@@ -1,19 +1,22 @@
 // File: app/src/screens/TermsScreen.tsx
 //
 // PLACEHOLDER VALUES TO REPLACE BEFORE PUBLISHING: entity name,
-// contact email, governing city/venue for disputes, subscription
-// fee terms once pricing is finalized.
+// governing city/venue for disputes, and Section 4 (Fees) once
+// your pricing model, billing cycle, trial period, and refund
+// policy are finalized. Assumed "September 13, 2026" for the
+// effective date to match the Privacy Policy and Cookies Policy —
+// change if you want a different date.
 
 import { LegalDocument } from '../components/legal/LegalDocument';
 
 export function TermsScreen() {
   return (
-    <LegalDocument title="Terms and Conditions" lastUpdated="[EFFECTIVE DATE]">
+    <LegalDocument title="Terms and Conditions" lastUpdated="September 13, 2026">
       <p>
         These Terms and Conditions ("Terms") govern your access to and use of Keki, a
         platform operated by Keki Developers that helps small food businesses manage catalogs,
         orders, and customer conversations, including through an AI assistant on Facebook
-        Messenger. By creating an account, you agree to these Terms.
+        Messenger and Instagram. By creating an account, you agree to these Terms.
       </p>
 
       <h2>1. Who Can Use Keki</h2>
@@ -59,14 +62,14 @@ export function TermsScreen() {
 
       <h2>6. Third-Party Services</h2>
       <p>
-        BakeShopOS relies on third-party services including Meta Platforms (Facebook Messenger),
-        OpenAI, and Supabase. Your use of BakeShopOS is also subject to those providers' own terms
+        Keki relies on third-party services including Meta Platforms (Facebook Messenger),
+        OpenAI, and Supabase. Your use of Keki is also subject to those providers' own terms
         where applicable, and we are not responsible for outages or changes on their end.
       </p>
 
       <h2>7. Disclaimer of Warranties</h2>
       <p>
-        BakeShopOS is provided "as is" without warranties of any kind, express or implied, to the
+        Keki is provided "as is" without warranties of any kind, express or implied, to the
         fullest extent permitted by law. We do not guarantee the platform will be uninterrupted,
         error-free, or that AI-generated responses will always be accurate.
       </p>
