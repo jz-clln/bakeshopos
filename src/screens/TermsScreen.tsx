@@ -102,7 +102,7 @@ export function TermsScreen() {
       </p>
 
       <h2>12. Contact Us</h2>
-      <p>Questions about these Terms can be sent to kekiai@gmail.com.</p>
+      <p>Questions about these Terms can be sent to kekiai.ph@gmail.com.</p>
     </LegalDocument>
   );
 }
