@@ -1,4 +1,8 @@
 // File: app/src/api/aiSettings.ts
+// (fetchAiTokenUsage now also returns the shop's real limit, so the
+// progress bar always matches what's actually enforced — if you
+// extend a shop's limit, their own Settings screen reflects it
+// automatically, with no separate frontend change needed)
 
 import { supabase } from '../lib/supabase';
 
@@ -24,28 +28,24 @@ export async function setAiLanguage(organizationId: string, language: AiLanguage
   if (error) throw error;
 }
 
-export const MONTHLY_AI_TOKEN_LIMIT = 1_000_000;
-
 export interface AiTokenUsage {
   tokensThisMonth: number;
   tokensThisWeek: number;
+  monthlyLimit: number;
 }
 
-/**
- * Token counts only — no cost figures. The monthly total is checked
- * against MONTHLY_AI_TOKEN_LIMIT purely for display (the actual
- * enforcement that stops the AI happens server-side in
- * facebook-ai-respond, using the same underlying ai_events data).
- */
 export async function fetchAiTokenUsage(organizationId: string): Promise<AiTokenUsage> {
-  const { data, error } = await supabase
-    .rpc('get_ai_token_usage', { p_organization_id: organizationId })
-    .single();
+  const [{ data: usageData, error: usageError }, { data: orgData, error: orgError }] = await Promise.all([
+    supabase.rpc('get_ai_token_usage', { p_organization_id: organizationId }).single(),
+    supabase.from('organizations').select('monthly_ai_token_limit').eq('id', organizationId).single(),
+  ]);
 
-  if (error) throw error;
+  if (usageError) throw usageError;
+  if (orgError) throw orgError;
 
   return {
-    tokensThisMonth: Number((data as any)?.tokens_this_month ?? 0),
-    tokensThisWeek: Number((data as any)?.tokens_this_week ?? 0),
+    tokensThisMonth: Number((usageData as any)?.tokens_this_month ?? 0),
+    tokensThisWeek: Number((usageData as any)?.tokens_this_week ?? 0),
+    monthlyLimit: (orgData as any)?.monthly_ai_token_limit ?? 1_000_000,
   };
 }

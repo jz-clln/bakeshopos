@@ -18,7 +18,7 @@ import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { getFacebookConnection, startFacebookConnect, disconnectFacebook, type FacebookConnection } from '../api/facebook';
 import { fetchShopIdentity, type ShopIdentity } from '../api/shopProfile';
-import { fetchAiLanguage, setAiLanguage, fetchAiTokenUsage, MONTHLY_AI_TOKEN_LIMIT, type AiLanguage, type AiTokenUsage } from '../api/aiSettings';
+import { fetchAiLanguage, setAiLanguage, fetchAiTokenUsage, type AiLanguage, type AiTokenUsage } from '../api/aiSettings';
 import { UsageMeter } from '../components/settings/UsageMeter';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -347,7 +347,7 @@ export function SettingsScreen() {
               <UsageMeter
                 label="This month"
                 used={tokenUsage.tokensThisMonth}
-                limit={MONTHLY_AI_TOKEN_LIMIT}
+                limit={tokenUsage.monthlyLimit}
               />
               <div className="flex items-center justify-between pt-3 border-t border-platinum/60">
                 <p className="text-[13px] text-olive">This week</p>
