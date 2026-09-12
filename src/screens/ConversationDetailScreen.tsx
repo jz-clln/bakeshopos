@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X } from 'lucide-react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   fetchConversationDetail,
   fetchMessages,
@@ -15,6 +16,7 @@ import {
 } from '../api/messages';
 import { uploadMessageAttachment } from '../api/attachments';
 import { useAuth } from '../lib/auth-context';
+import { supabase } from '../lib/supabase';
 import { EmojiPicker } from '../components/messages/EmojiPicker';
 import { ChannelIcon } from '../components/messages/ChannelIcon';
 import { getAvatarPreset } from '../lib/avatarPresets';
@@ -78,6 +80,7 @@ export function ConversationDetailScreen() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -87,6 +90,74 @@ export function ConversationDetailScreen() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [loading]);
+
+  // Live thread: new messages (from the customer, from the AI, or
+  // sent by the owner from another tab/device) drop straight into
+  // the conversation without a manual refresh. Row updates cover a
+  // delivery_status flipping from queued to sent/failed after the
+  // fact. Both are filtered to this exact conversation_id.
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const channel = supabase
+      .channel(`conversation-${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const incoming = payload.new as MessageRow;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === incoming.id)) return prev;
+            return [...prev, incoming];
+          });
+          if (incoming.sender_type === 'customer') {
+            markConversationViewed(conversationId).catch((err) =>
+              console.error('Failed to mark conversation viewed:', err)
+            );
+          }
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updated = payload.new as MessageRow;
+          setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+          filter: `id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updated = payload.new as { handler: ConversationDetail['handler'] };
+          setConversation((prev) => (prev ? { ...prev, handler: updated.handler } : prev));
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [conversationId]);
 
   async function loadAll() {
     if (!conversationId) return;

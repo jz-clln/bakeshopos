@@ -1,12 +1,14 @@
 // File: app/src/screens/MessagesScreen.tsx
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, Settings } from 'lucide-react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { ChannelIcon } from '../components/messages/ChannelIcon';
 import { useAuth } from '../lib/auth-context';
+import { supabase } from '../lib/supabase';
 import { getFacebookConnection } from '../api/facebook';
 import { fetchConversationList, type ConversationListItem } from '../api/messages';
 import { getAvatarPreset } from '../lib/avatarPresets';
@@ -38,6 +40,24 @@ export function MessagesScreen() {
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced so a burst of events (several messages landing at once,
+  // or an INSERT + UPDATE firing back to back) collapses into a
+  // single refetch instead of hammering the view query.
+  function scheduleListRefetch(orgId: string) {
+    if (refetchTimeoutRef.current) clearTimeout(refetchTimeoutRef.current);
+    refetchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const list = await fetchConversationList(orgId);
+        setConversations(list);
+      } catch (err) {
+        console.error('Failed to refresh conversations:', err);
+      }
+    }, 300);
+  }
+
   useEffect(() => {
     if (!organizationId) return;
     const orgId = organizationId;
@@ -62,6 +82,37 @@ export function MessagesScreen() {
     }
 
     load();
+
+    // Live inbox: a new message, a new conversation, or a handler
+    // change (AI reply, handoff, another device replying) triggers a
+    // debounced refetch instead of requiring a manual page refresh.
+    // Relies on RLS to scope which rows this owner actually receives.
+    const channel = supabase
+      .channel(`conversations-list-${orgId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        () => scheduleListRefetch(orgId)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'conversations' },
+        () => scheduleListRefetch(orgId)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversations' },
+        () => scheduleListRefetch(orgId)
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      if (refetchTimeoutRef.current) clearTimeout(refetchTimeoutRef.current);
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
   }, [organizationId]);
 
   const totalUnread = conversations.reduce((n, c) => n + c.unread_count, 0);
