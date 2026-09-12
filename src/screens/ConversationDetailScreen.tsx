@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Facebook, Bot, Send, AlertTriangle, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X } from 'lucide-react';
 import {
   fetchConversationDetail,
   fetchMessages,
@@ -16,17 +16,44 @@ import {
 import { uploadMessageAttachment } from '../api/attachments';
 import { useAuth } from '../lib/auth-context';
 import { EmojiPicker } from '../components/messages/EmojiPicker';
+import { ChannelIcon } from '../components/messages/ChannelIcon';
 import { getAvatarPreset } from '../lib/avatarPresets';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString('en-PH', {
-    month: 'short',
+// Consecutive messages from the same sender within this window are
+// visually grouped — tighter spacing, timestamp shown once at the end
+// of the cluster instead of on every bubble.
+const GROUP_WINDOW_MS = 3 * 60 * 1000;
+
+function isSameDay(isoA: string, isoB: string): boolean {
+  const a = new Date(isoA);
+  const b = new Date(isoB);
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function formatDateDivider(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  if (isSameDay(iso, now.toISOString())) return 'Today';
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameDay(iso, yesterday.toISOString())) return 'Yesterday';
+
+  return date.toLocaleDateString('en-PH', {
+    month: 'long',
     day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
   });
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
 }
 
 export function ConversationDetailScreen() {
@@ -171,43 +198,29 @@ export function ConversationDetailScreen() {
         >
           <button
             onClick={() => navigate('/messages')}
-            className="w-10 h-10 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] flex items-center justify-center transition-transform duration-150 active:scale-90 shrink-0"
+            className="w-11 h-11 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] flex items-center justify-center transition-transform duration-150 active:scale-90 shrink-0"
             aria-label="Back to Messages"
           >
             <ArrowLeft size={17} className="text-olive" />
           </button>
 
           {!loading && conversation && (
-            <div className="relative shrink-0">
-              {hasAvatar ? (
-                <img
-                  src={conversation.customer_avatar_url!}
-                  alt=""
-                  className="w-9 h-9 rounded-full object-cover bg-platinum"
-                  onError={() => setAvatarFailed(true)}
-                />
-              ) : (
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-[15px]"
-                  style={{ backgroundColor: preset?.bg }}
-                >
-                  {preset?.emoji}
-                </div>
-              )}
-              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-white">
-                <Facebook size={8} className="text-white" />
-              </div>
-            </div>
+            <img
+              src={hasAvatar ? conversation.customer_avatar_url! : preset?.src}
+              alt=""
+              className="w-9 h-9 rounded-full object-cover bg-platinum shrink-0"
+              onError={() => setAvatarFailed(true)}
+            />
           )}
 
           <div className="min-w-0 flex-1">
             <p className="font-display text-[19px] font-bold tracking-tight text-accent-dark truncate">
               {headerName}
             </p>
-            <div className="flex items-center gap-1.5">
-              <Facebook size={11} className="text-blue-600" />
-              <span className="text-[12px] text-olive">Facebook Messenger</span>
-            </div>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-olive bg-platinum/70 px-1.5 py-0.5 rounded-full mt-0.5">
+              <ChannelIcon size={12} />
+              Messenger
+            </span>
           </div>
         </div>
       </motion.div>
@@ -246,7 +259,10 @@ export function ConversationDetailScreen() {
       )}
 
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-5 md:px-10">
+      <div
+        className="flex-1 overflow-y-auto min-h-0 px-5 md:px-10"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         <div className="max-w-5xl mx-auto w-full">
           {loading ? (
             <div className="space-y-3 pt-4">
@@ -261,57 +277,88 @@ export function ConversationDetailScreen() {
               <p className="text-sm text-olive">No messages yet.</p>
             </div>
           ) : (
-            <div className="space-y-3 pt-4 pb-4">
-              {messages.map((msg) => {
+            <div className="pt-4 pb-4">
+              {messages.map((msg, i) => {
+                const prev = messages[i - 1];
+                const next = messages[i + 1];
                 const isCustomer = msg.sender_type === 'customer';
                 const notDelivered = msg.delivery_status !== 'sent' && !isCustomer;
+
+                const showDateDivider = !prev || !isSameDay(msg.created_at, prev.created_at);
+
+                const groupedWithPrev =
+                  !!prev &&
+                  !showDateDivider &&
+                  prev.sender_type === msg.sender_type &&
+                  new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_WINDOW_MS;
+
+                const groupedWithNext =
+                  !!next &&
+                  isSameDay(msg.created_at, next.created_at) &&
+                  next.sender_type === msg.sender_type &&
+                  new Date(next.created_at).getTime() - new Date(msg.created_at).getTime() < GROUP_WINDOW_MS;
+
+                const showTimestamp = !groupedWithNext;
+
                 return (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, ease: EASE }}
-                    className={`flex ${isCustomer ? 'justify-start' : 'justify-end'}`}
-                  >
-                    <div className={`max-w-[75%] rounded-[18px] overflow-hidden ${
-                      msg.media_url ? 'p-1.5' : 'px-4 py-2.5'
-                    } ${
-                      isCustomer
-                        ? 'bg-white text-accent-dark shadow-[0_1px_4px_rgba(0,0,0,0.06)] rounded-bl-[4px]'
-                        : notDelivered
-                        ? 'bg-platinum text-accent-dark rounded-br-[4px] border border-dashed border-olive/40'
-                        : 'bg-accent-dark text-white rounded-br-[4px]'
-                    }`}>
-                      {msg.media_url && (
-                        <img
-                          src={msg.media_url}
-                          alt="Attachment"
-                          className="rounded-[13px] max-w-full max-h-[280px] object-cover"
-                        />
-                      )}
-                      {msg.body && (
-                        <p className={`text-[14px] leading-relaxed whitespace-pre-wrap ${msg.media_url ? 'px-2.5 pt-2' : ''}`}>
-                          {msg.body}
-                        </p>
-                      )}
-                      <div className={`flex items-center gap-1.5 mt-1 ${msg.media_url ? 'px-2.5 pb-1' : ''} ${isCustomer ? 'justify-start' : 'justify-end'}`}>
-                        {!isCustomer && (
-                          <span className={`text-[10px] font-semibold uppercase tracking-wide ${notDelivered ? 'text-olive' : 'opacity-70'}`}>
-                            {msg.sender_type === 'ai' ? 'AI' : 'You'}
-                          </span>
-                        )}
-                        <span className={`text-[11px] ${isCustomer ? 'text-olive' : notDelivered ? 'text-olive' : 'text-white/60'}`}>
-                          {formatTimestamp(msg.created_at)}
+                  <div key={msg.id}>
+                    {showDateDivider && (
+                      <div className="flex items-center justify-center py-3 first:pt-0">
+                        <span className="text-[11px] font-medium text-olive bg-white/80 px-3 py-1 rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+                          {formatDateDivider(msg.created_at)}
                         </span>
                       </div>
-                      {notDelivered && (
-                        <p className={`text-[11px] text-amber-700 ${msg.media_url ? 'px-2.5 pb-1.5' : 'mt-1'}`}>
-                          {msg.delivery_status === 'blocked_window'
-                            ? 'Not delivered — outside the 24-hour messaging window'
-                            : 'Not delivered — sending failed'}
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
+                    )}
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, ease: EASE }}
+                      className={`flex ${isCustomer ? 'justify-start' : 'justify-end'} ${
+                        groupedWithPrev ? 'mt-1' : 'mt-3'
+                      }`}
+                    >
+                      <div className={`max-w-[75%] rounded-[18px] overflow-hidden ${
+                        msg.media_url ? 'p-1.5' : 'px-4 py-2.5'
+                      } ${
+                        isCustomer
+                          ? 'bg-white text-accent-dark shadow-[0_1px_4px_rgba(0,0,0,0.06)] rounded-bl-[4px]'
+                          : notDelivered
+                          ? 'bg-platinum text-accent-dark rounded-br-[4px] border border-dashed border-olive/40'
+                          : 'bg-accent-dark text-white rounded-br-[4px]'
+                      }`}>
+                        {msg.media_url && (
+                          <img
+                            src={msg.media_url}
+                            alt="Attachment"
+                            className="rounded-[13px] max-w-full max-h-[280px] object-cover"
+                          />
+                        )}
+                        {msg.body && (
+                          <p className={`text-[14px] leading-relaxed whitespace-pre-wrap ${msg.media_url ? 'px-2.5 pt-2' : ''}`}>
+                            {msg.body}
+                          </p>
+                        )}
+                        {showTimestamp && (
+                          <div className={`flex items-center gap-1.5 mt-1 ${msg.media_url ? 'px-2.5 pb-1' : ''} ${isCustomer ? 'justify-start' : 'justify-end'}`}>
+                            {!isCustomer && (
+                              <span className={`text-[10px] font-semibold uppercase tracking-wide ${notDelivered ? 'text-olive' : 'opacity-70'}`}>
+                                {msg.sender_type === 'ai' ? 'AI' : 'You'}
+                              </span>
+                            )}
+                            <span className={`text-[11px] ${isCustomer ? 'text-olive' : notDelivered ? 'text-olive' : 'text-white/60'}`}>
+                              {formatTime(msg.created_at)}
+                            </span>
+                          </div>
+                        )}
+                        {notDelivered && (
+                          <p className={`text-[11px] text-amber-700 ${msg.media_url ? 'px-2.5 pb-1.5' : 'mt-1'}`}>
+                            {msg.delivery_status === 'blocked_window'
+                              ? 'Not delivered — outside the 24-hour messaging window'
+                              : 'Not delivered — sending failed'}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  </div>
                 );
               })}
               <div ref={bottomRef} />
@@ -360,7 +407,7 @@ export function ConversationDetailScreen() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-olive hover:text-accent-dark transition-colors duration-150"
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-olive hover:text-accent-dark transition-colors duration-150"
               aria-label="Attach image"
             >
               <ImageIcon size={18} />
@@ -377,7 +424,7 @@ export function ConversationDetailScreen() {
               }}
               placeholder="Type a reply…"
               rows={1}
-              className="flex-1 resize-none bg-transparent px-2 py-2 text-[14px] text-accent-dark placeholder:text-olive/70 focus:outline-none max-h-24"
+              className="flex-1 resize-none bg-transparent px-2 py-2.5 text-[14px] text-accent-dark placeholder:text-olive/70 focus:outline-none max-h-24"
             />
 
             <EmojiPicker onSelect={handleEmojiSelect} />
@@ -385,7 +432,7 @@ export function ConversationDetailScreen() {
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className="w-9 h-9 rounded-full bg-accent-dark text-white flex items-center justify-center shrink-0 transition-all duration-150 active:scale-90 disabled:opacity-30 disabled:bg-olive/30"
+              className="w-10 h-10 rounded-full bg-accent-dark text-white flex items-center justify-center shrink-0 transition-all duration-150 active:scale-90 disabled:opacity-30 disabled:bg-olive/30"
               aria-label="Send"
             >
               <Send size={15} />

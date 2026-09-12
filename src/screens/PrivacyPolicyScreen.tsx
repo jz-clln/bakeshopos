@@ -115,7 +115,7 @@ export function PrivacyPolicyScreen() {
         <li>File a complaint with the National Privacy Commission (NPC) if you believe your rights have been violated.</li>
       </ul>
       <p>
-        To exercise any of these rights, contact us at kekiai@gmail.com. If you are a Customer,
+        To exercise any of these rights, contact us at kekiai.ph@gmail.com. If you are a Customer,
         you may also raise requests directly with the shop you messaged.
       </p>
 
@@ -143,7 +143,7 @@ export function PrivacyPolicyScreen() {
       <h2>11. Contact Us</h2>
       <p>
         If you have questions about this Policy or how your data is handled, contact us at
-        kekiai@gmail.com. You may also file a complaint with the
+        kekiai.ph@gmail.com. You may also file a complaint with the
         National Privacy Commission at{' '}
         <a href="https://privacy.gov.ph" target="_blank" rel="noopener noreferrer">privacy.gov.ph</a>.
       </p>

@@ -30,7 +30,7 @@ const fadeUp = {
   }),
 };
 
-const SUPPORT_EMAIL = 'kekiai@gmail.com';
+const SUPPORT_EMAIL = 'kekiai.ph@gmail.com';
 
 export function PrivacySecurityScreen() {
   const navigate = useNavigate();

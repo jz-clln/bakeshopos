@@ -57,7 +57,7 @@ export function CookiesPolicyScreen() {
       </p>
 
       <h2>6. Contact Us</h2>
-      <p>Questions about this Policy can be sent to kekiai@gmail.com.</p>
+      <p>Questions about this Policy can be sent to kekiai.ph@gmail.com.</p>
     </LegalDocument>
   );
 }
