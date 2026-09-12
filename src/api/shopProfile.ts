@@ -36,16 +36,31 @@ export type UpdateShopProfileInput = Partial<{
   delivery_available: boolean;
 }>;
 
+// Every write below chains .select(...).single() after the update and
+// checks for a returned row. Plain .update().eq() alone can silently
+// affect ZERO rows if a Row Level Security policy filters the row out
+// — Postgres reports that as success with no error, so the caller has
+// no way to know the write never actually happened. Asking for the
+// row back turns that silent no-op into a real, visible error instead
+// of a UI that optimistically looks like it worked when it didn't.
+
 export async function updateShopProfile(
   organizationId: string,
   updates: UpdateShopProfileInput
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('organizations')
     .update(updates)
-    .eq('id', organizationId);
+    .eq('id', organizationId)
+    .select('id')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) {
+    throw new Error(
+      'Shop details did not save — the update matched no rows. This usually means a permissions (RLS) issue on the organizations table.'
+    );
+  }
 }
 
 /**
@@ -55,12 +70,25 @@ export async function updateShopProfile(
  * profile just to flip one switch.
  */
 export async function setAcceptingOrders(organizationId: string, accepting: boolean): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('organizations')
     .update({ accepting_orders: accepting })
-    .eq('id', organizationId);
+    .eq('id', organizationId)
+    .select('accepting_orders')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) {
+    throw new Error(
+      'Accepting-orders status did not save — the update matched no rows. This usually means a permissions (RLS) issue on the organizations table.'
+    );
+  }
+  if (data.accepting_orders !== accepting) {
+    // Wrote successfully but the value that came back doesn't match
+    // what we asked for — a trigger, a stale read, or a race with
+    // another write. Surfacing this beats silently trusting it.
+    throw new Error('Accepting-orders status saved an unexpected value. Please refresh and check.');
+  }
 }
 
 export interface ShopIdentity {
@@ -157,12 +185,19 @@ export async function uploadShopLogo(
   const { data: publicUrlData } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
   const logoUrl = publicUrlData.publicUrl;
 
-  const { error: updateError } = await supabase
+  const { data: updateData, error: updateError } = await supabase
     .from('organizations')
     .update({ logo_url: logoUrl })
-    .eq('id', organizationId);
+    .eq('id', organizationId)
+    .select('id')
+    .maybeSingle();
 
   if (updateError) throw updateError;
+  if (!updateData) {
+    throw new Error(
+      'Logo uploaded, but the shop record did not update — the update matched no rows. This usually means a permissions (RLS) issue on the organizations table.'
+    );
+  }
 
   if (previousLogoUrl) {
     const oldPath = extractLogoStoragePath(previousLogoUrl);
@@ -181,12 +216,19 @@ export async function uploadShopLogo(
  * cleanup-after-confirmed-write ordering as uploadShopLogo.
  */
 export async function removeShopLogo(organizationId: string, previousLogoUrl?: string | null): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('organizations')
     .update({ logo_url: null })
-    .eq('id', organizationId);
+    .eq('id', organizationId)
+    .select('id')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) {
+    throw new Error(
+      'Logo did not remove — the update matched no rows. This usually means a permissions (RLS) issue on the organizations table.'
+    );
+  }
 
   if (previousLogoUrl) {
     const oldPath = extractLogoStoragePath(previousLogoUrl);

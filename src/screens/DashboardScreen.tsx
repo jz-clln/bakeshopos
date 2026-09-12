@@ -107,6 +107,7 @@ export function DashboardScreen() {
   const [acceptingOrders, setAcceptingOrdersState] = useState(true);
   const [acceptingOrdersLoaded, setAcceptingOrdersLoaded] = useState(false);
   const [togglingAccepting, setTogglingAccepting] = useState(false);
+  const [acceptingOrdersError, setAcceptingOrdersError] = useState<string | null>(null);
 
   // Seeded from the sign-up snapshot so the greeting isn't blank on
   // first paint, then overwritten below with the real, current shop
@@ -177,12 +178,16 @@ export function DashboardScreen() {
     if (!organizationId || togglingAccepting) return;
     const next = !acceptingOrders;
     setAcceptingOrdersState(next);
+    setAcceptingOrdersError(null);
     setTogglingAccepting(true);
     try {
       await setAcceptingOrders(organizationId, next);
     } catch (err) {
       console.error('Failed to update accepting orders status:', err);
       setAcceptingOrdersState(!next);
+      setAcceptingOrdersError(
+        err instanceof Error ? err.message : 'Could not update. Please try again.'
+      );
     } finally {
       setTogglingAccepting(false);
     }
@@ -221,42 +226,49 @@ export function DashboardScreen() {
       ) : (
         <motion.div
           custom={1} variants={fadeUp} initial="hidden" animate="visible"
-          className={`flex items-center justify-between gap-3 rounded-[16px] px-4 py-3 md:py-2.5 mb-4 md:mb-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors duration-200 ${
+          className={`rounded-[16px] px-4 py-3 md:py-2.5 mb-4 md:mb-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors duration-200 ${
             acceptingOrders ? 'bg-white' : 'bg-rose-50'
           }`}
         >
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Pulsing ring + solid glowing dot — same "live status" pattern, just recolored per state */}
-            <span className="relative flex w-2.5 h-2.5 shrink-0">
-              <span
-                className={`animate-ping absolute inline-flex w-full h-full rounded-full opacity-60 ${
-                  acceptingOrders ? 'bg-green-400' : 'bg-rose-400'
-                }`}
-              />
-              <span
-                className={`relative inline-flex w-2.5 h-2.5 rounded-full ${
-                  acceptingOrders
-                    ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.22),0_0_10px_3px_rgba(34,197,94,0.65)]'
-                    : 'bg-rose-400 shadow-[0_0_0_3px_rgba(251,113,133,0.22),0_0_10px_3px_rgba(251,113,133,0.55)]'
-                }`}
-              />
-            </span>
-            <div className="min-w-0">
-              <p className={`text-[14px] font-semibold ${acceptingOrders ? 'text-accent-dark' : 'text-rose-700'}`}>
-                {acceptingOrders ? 'Accepting orders' : 'Not accepting orders'}
-              </p>
-              {!acceptingOrders && (
-                <p className="text-[12px] text-rose-500 leading-snug">
-                  Customers messaging you will be told you are closed.
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Pulsing ring + solid glowing dot — same "live status" pattern, just recolored per state */}
+              <span className="relative flex w-2.5 h-2.5 shrink-0">
+                <span
+                  className={`animate-ping absolute inline-flex w-full h-full rounded-full opacity-60 ${
+                    acceptingOrders ? 'bg-green-400' : 'bg-rose-400'
+                  }`}
+                />
+                <span
+                  className={`relative inline-flex w-2.5 h-2.5 rounded-full ${
+                    acceptingOrders
+                      ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.22),0_0_10px_3px_rgba(34,197,94,0.65)]'
+                      : 'bg-rose-400 shadow-[0_0_0_3px_rgba(251,113,133,0.22),0_0_10px_3px_rgba(251,113,133,0.55)]'
+                  }`}
+                />
+              </span>
+              <div className="min-w-0">
+                <p className={`text-[14px] font-semibold ${acceptingOrders ? 'text-accent-dark' : 'text-rose-700'}`}>
+                  {acceptingOrders ? 'Accepting orders' : 'Not accepting orders'}
                 </p>
-              )}
+                {!acceptingOrders && !acceptingOrdersError && (
+                  <p className="text-[12px] text-rose-500 leading-snug">
+                    Customers messaging you will be told you are closed.
+                  </p>
+                )}
+              </div>
             </div>
+            <Switch
+              checked={acceptingOrders}
+              onChange={handleToggleAccepting}
+              ariaLabel="Accepting orders"
+            />
           </div>
-          <Switch
-            checked={acceptingOrders}
-            onChange={handleToggleAccepting}
-            ariaLabel="Accepting orders"
-          />
+          {acceptingOrdersError && (
+            <p className="text-[12px] text-red-600 mt-2 leading-snug">
+              {acceptingOrdersError}
+            </p>
+          )}
         </motion.div>
       )}
 

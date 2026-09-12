@@ -31,6 +31,7 @@ export function ShopDetailsScreen() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [togglingAccepting, setTogglingAccepting] = useState(false);
+  const [acceptingError, setAcceptingError] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
 
@@ -77,7 +78,9 @@ export function ShopDetailsScreen() {
       setSaved(true);
     } catch (err) {
       console.error('Failed to save shop details:', err);
-      setSaveError('Could not save your changes. Check your connection and try again.');
+      setSaveError(
+        err instanceof Error ? err.message : 'Could not save your changes. Check your connection and try again.'
+      );
     } finally {
       setSaving(false);
     }
@@ -87,12 +90,16 @@ export function ShopDetailsScreen() {
     if (!organizationId || !profile) return;
     const previous = profile.accepting_orders;
     setProfile((prev) => (prev ? { ...prev, accepting_orders: next } : prev));
+    setAcceptingError(null);
     setTogglingAccepting(true);
     try {
       await setAcceptingOrders(organizationId, next);
     } catch (err) {
       console.error('Failed to update accepting orders status:', err);
       setProfile((prev) => (prev ? { ...prev, accepting_orders: previous } : prev));
+      setAcceptingError(
+        err instanceof Error ? err.message : 'Could not update. Please try again.'
+      );
     } finally {
       setTogglingAccepting(false);
     }
@@ -111,7 +118,11 @@ export function ShopDetailsScreen() {
     } catch (err) {
       console.error('Failed to upload shop logo:', err);
       setLogoError(
-        err instanceof InvalidLogoFileError ? err.message : 'Could not upload image. Please try again.'
+        err instanceof InvalidLogoFileError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'Could not upload image. Please try again.'
       );
     } finally {
       setUploadingLogo(false);
@@ -127,7 +138,7 @@ export function ShopDetailsScreen() {
       setProfile((prev) => (prev ? { ...prev, logo_url: null } : prev));
     } catch (err) {
       console.error('Failed to remove shop logo:', err);
-      setLogoError('Could not remove image. Please try again.');
+      setLogoError(err instanceof Error ? err.message : 'Could not remove image. Please try again.');
     } finally {
       setUploadingLogo(false);
     }
@@ -284,10 +295,13 @@ export function ShopDetailsScreen() {
           <div className="flex items-center justify-between">
             <div className="min-w-0 pr-3">
               <p className="text-[14px] text-accent-dark font-medium">Accepting orders</p>
-              {!profile.accepting_orders && (
+              {!profile.accepting_orders && !acceptingError && (
                 <p className="text-[12px] text-amber-700">
                   Customers messaging you will be told you are not taking orders right now.
                 </p>
+              )}
+              {acceptingError && (
+                <p className="text-[12px] text-red-600 leading-snug">{acceptingError}</p>
               )}
             </div>
             <Switch
