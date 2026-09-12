@@ -10,12 +10,14 @@ import {
   Store,
   Bell,
   ShieldCheck,
+  Languages,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { getFacebookConnection, startFacebookConnect, disconnectFacebook, type FacebookConnection } from '../api/facebook';
 import { fetchShopIdentity, type ShopIdentity } from '../api/shopProfile';
+import { fetchAiLanguage, setAiLanguage, type AiLanguage } from '../api/aiSettings';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -123,6 +125,51 @@ export function SettingsScreen() {
 
   const isFbConnected = fbConnection?.status === 'connected';
 
+  // AI reply language — defaults to English while loading so the
+  // toggle never flashes an unselected state.
+  const [aiLanguage, setAiLanguageState] = useState<AiLanguage>('en');
+  const [aiLanguageLoaded, setAiLanguageLoaded] = useState(false);
+  const [savingAiLanguage, setSavingAiLanguage] = useState(false);
+  const [aiLanguageError, setAiLanguageError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+
+    fetchAiLanguage(organizationId)
+      .then((lang) => {
+        if (!cancelled) {
+          setAiLanguageState(lang);
+          setAiLanguageLoaded(true);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load AI language:', err);
+        if (!cancelled) setAiLanguageLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
+  async function handleSetAiLanguage(lang: AiLanguage) {
+    if (!organizationId || savingAiLanguage || lang === aiLanguage) return;
+    const previous = aiLanguage;
+    setAiLanguageState(lang); // optimistic
+    setSavingAiLanguage(true);
+    setAiLanguageError(null);
+    try {
+      await setAiLanguage(organizationId, lang);
+    } catch (err) {
+      console.error('Failed to update AI language:', err);
+      setAiLanguageState(previous);
+      setAiLanguageError('Could not update. Please try again.');
+    } finally {
+      setSavingAiLanguage(false);
+    }
+  }
+
   return (
     <ScreenShell>
       {/* Header */}
@@ -133,25 +180,35 @@ export function SettingsScreen() {
         Settings
       </motion.h1>
 
-      {/* Shop identity card */}
-      <motion.div
-        custom={1} variants={fadeUp} initial="hidden" animate="visible"
-        className="bg-accent-dark rounded-[20px] px-5 py-5 flex items-center gap-4 mb-5 shadow-[0_4px_20px_rgba(0,0,0,0.12)]"
-      >
-        <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center text-lg font-bold text-white shrink-0 overflow-hidden">
-          {logoUrl ? (
-            <img src={logoUrl} alt={`${shopName} logo`} className="w-full h-full object-cover" />
-          ) : (
-            shopName.charAt(0).toUpperCase()
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="text-white font-semibold text-[17px] truncate">{shopName}</p>
-          {role && (
-            <p className="text-white/60 text-sm capitalize">{role}</p>
-          )}
-        </div>
-      </motion.div>
+      {/* Shop identity card — tap through to Shop details */}
+      <Link to="/settings/shop" className="block mb-5 group">
+        <motion.div
+          custom={1} variants={fadeUp} initial="hidden" animate="visible"
+          className="relative overflow-hidden bg-accent-dark rounded-[20px] px-5 py-5 flex items-center gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.12)] transition-transform duration-150 active:scale-[0.99]"
+        >
+          {/* Decorative glow — same language as the Dashboard hero card */}
+          <div className="pointer-events-none absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/5" />
+          <div className="pointer-events-none absolute -bottom-12 -right-2 w-40 h-40 rounded-full bg-white/[0.03]" />
+
+          <div className="relative w-14 h-14 rounded-full bg-white/15 ring-2 ring-white/20 flex items-center justify-center text-xl font-bold text-white shrink-0 overflow-hidden">
+            {logoUrl ? (
+              <img src={logoUrl} alt={`${shopName} logo`} className="w-full h-full object-cover" />
+            ) : (
+              shopName.charAt(0).toUpperCase()
+            )}
+          </div>
+          <div className="relative min-w-0 flex-1">
+            <p className="text-white font-semibold text-[18px] truncate">{shopName}</p>
+            {role && (
+              <p className="text-white/60 text-[13px] capitalize">{role}</p>
+            )}
+          </div>
+          <ChevronRight
+            size={16}
+            className="relative text-white/40 group-active:text-white/70 transition-colors duration-150 shrink-0"
+          />
+        </motion.div>
+      </Link>
 
       {/* Channels */}
       <motion.section custom={2} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
@@ -204,8 +261,50 @@ export function SettingsScreen() {
         </div>
       </motion.section>
 
-      {/* General settings */}
+      {/* AI assistant language */}
       <motion.section custom={3} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
+          AI assistant
+        </p>
+        <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
+              <Languages size={17} className="text-accent-dark" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-medium text-accent-dark">Reply language</p>
+              <p className="text-[13px] text-olive">
+                {aiLanguageError ?? 'Your AI assistant replies to customers in this language.'}
+              </p>
+            </div>
+          </div>
+
+          {!aiLanguageLoaded ? (
+            <div className="h-10 rounded-full bg-platinum/60 animate-pulse" aria-hidden="true" />
+          ) : (
+            <div className="grid grid-cols-2 gap-1 bg-platinum/60 rounded-full p-1">
+              {(['en', 'fil'] as const).map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => handleSetAiLanguage(lang)}
+                  disabled={savingAiLanguage}
+                  aria-pressed={aiLanguage === lang}
+                  className={`h-10 rounded-full text-[13px] font-semibold transition-all duration-150 disabled:opacity-60 ${
+                    aiLanguage === lang
+                      ? 'bg-white text-accent-dark shadow-[0_1px_3px_rgba(0,0,0,0.12)]'
+                      : 'text-olive active:scale-[0.98]'
+                  }`}
+                >
+                  {lang === 'en' ? 'English' : 'Filipino'}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.section>
+
+      {/* General settings */}
+      <motion.section custom={4} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
           General
         </p>
@@ -229,7 +328,7 @@ export function SettingsScreen() {
       </motion.section>
 
       {/* Sign out */}
-      <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible">
+      <motion.div custom={5} variants={fadeUp} initial="hidden" animate="visible">
         <button
           onClick={() => signOut?.()}
           className="w-full flex items-center justify-center gap-2 min-h-[52px] rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-red-500 text-[15px] font-semibold transition-colors duration-150 hover:bg-red-50 active:scale-[0.98]"

@@ -242,11 +242,11 @@ export function DashboardScreen() {
               />
             </span>
             <div className="min-w-0">
-              <p className={`text-[14px] font-semibold truncate ${acceptingOrders ? 'text-accent-dark' : 'text-rose-700'}`}>
+              <p className={`text-[14px] font-semibold ${acceptingOrders ? 'text-accent-dark' : 'text-rose-700'}`}>
                 {acceptingOrders ? 'Accepting orders' : 'Not accepting orders'}
               </p>
               {!acceptingOrders && (
-                <p className="text-[12px] text-rose-500 truncate">
+                <p className="text-[12px] text-rose-500 leading-snug">
                   Customers messaging you will be told you are closed.
                 </p>
               )}
