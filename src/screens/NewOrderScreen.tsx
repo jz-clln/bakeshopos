@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
-import { ArrowLeft, Search, UserPlus, Check } from 'lucide-react';
+import { ArrowLeft, Search, UserPlus, Check, Trash2 } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { Dropdown } from '../components/ui/Dropdown';
 import { CalendarInput, toDateString } from '../components/ui/Calendar';
@@ -11,7 +11,7 @@ import { useAuth } from '../lib/auth-context';
 import { formatPrice } from '../lib/currency';
 import { fetchProducts, fetchProductWithDetails } from '../api/products';
 import { calculatePrice } from '../api/pricing';
-import { searchCustomers, createCustomer, type Customer } from '../api/customers';
+import { searchCustomers, createCustomer, deleteCustomer, type Customer } from '../api/customers';
 import { createOrder } from '../api/orders';
 import type { ProductListItem, ProductWithDetails } from '../types/catalog';
 
@@ -36,6 +36,14 @@ export function NewOrderScreen() {
   const [addingNewCustomer, setAddingNewCustomer] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
+
+  // Deleting a duplicate customer directly from the search results —
+  // pendingDeleteId swaps that one row into an inline confirm bar
+  // instead of a separate modal, since this is meant to be a quick
+  // cleanup action, not a heavy flow.
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingCustomerId, setDeletingCustomerId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Product / variant / options
   const [products, setProducts] = useState<ProductListItem[]>([]);
@@ -110,6 +118,21 @@ export function NewOrderScreen() {
       setCustomerQuery('');
     } catch (err) {
       console.error('Failed to create customer:', err);
+    }
+  }
+
+  async function handleDeleteCustomer(customerId: string) {
+    setDeletingCustomerId(customerId);
+    setDeleteError(null);
+    try {
+      await deleteCustomer(customerId);
+      setCustomerResults((prev) => prev.filter((c) => c.id !== customerId));
+      setPendingDeleteId(null);
+    } catch (err) {
+      console.error('Failed to delete customer:', err);
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete this customer.');
+    } finally {
+      setDeletingCustomerId(null);
     }
   }
 
@@ -271,21 +294,61 @@ export function NewOrderScreen() {
 
                   {customerResults.length > 0 && (
                     <div className="space-y-1 mb-2">
-                      {customerResults.map((c) => (
-                        <motion.button
-                          key={c.id}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => {
-                            setSelectedCustomer(c);
-                            setCustomerQuery('');
-                            setCustomerResults([]);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-[10px] hover:bg-platinum/50 text-[14px] text-accent-dark"
-                        >
-                          {c.full_name}
-                          {c.phone_number && <span className="text-olive text-[12px]"> · {c.phone_number}</span>}
-                        </motion.button>
-                      ))}
+                      {deleteError && (
+                        <p className="text-[12px] text-red-600 px-1 pb-1">{deleteError}</p>
+                      )}
+                      {customerResults.map((c) =>
+                        pendingDeleteId === c.id ? (
+                          <div
+                            key={c.id}
+                            className="flex items-center justify-between gap-2 px-3 py-2 rounded-[10px] bg-red-50"
+                          >
+                            <span className="text-[13px] text-red-700 truncate">
+                              Delete {c.full_name}?
+                            </span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => setPendingDeleteId(null)}
+                                className="text-[12px] font-semibold text-olive px-2 py-1"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCustomer(c.id)}
+                                disabled={deletingCustomerId === c.id}
+                                className="text-[12px] font-semibold text-white bg-red-600 px-3 py-1 rounded-[8px] disabled:opacity-50"
+                              >
+                                {deletingCustomerId === c.id ? 'Deleting…' : 'Delete'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div key={c.id} className="flex items-center gap-1">
+                            <motion.button
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                setSelectedCustomer(c);
+                                setCustomerQuery('');
+                                setCustomerResults([]);
+                              }}
+                              className="flex-1 min-w-0 text-left px-3 py-2 rounded-[10px] hover:bg-platinum/50 text-[14px] text-accent-dark"
+                            >
+                              {c.full_name}
+                              {c.phone_number && <span className="text-olive text-[12px]"> · {c.phone_number}</span>}
+                            </motion.button>
+                            <button
+                              onClick={() => {
+                                setDeleteError(null);
+                                setPendingDeleteId(c.id);
+                              }}
+                              aria-label={`Delete ${c.full_name}`}
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-olive/60 hover:text-red-600 hover:bg-red-50 transition-colors duration-150 shrink-0"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )
+                      )}
                     </div>
                   )}
 

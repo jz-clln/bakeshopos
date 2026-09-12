@@ -9,6 +9,7 @@ import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
 import { formatPrice } from '../lib/currency';
 import { getValidNextStatuses, transitionOrderStatus } from '../api/orders';
+import { getAvatarPreset } from '../lib/avatarPresets';
 import type { OrderStatus } from '../types/catalog';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -34,7 +35,9 @@ const listRow = {
 /* ─── Types ─── */
 interface OrderRow {
   id: string;
+  customer_id: string;
   customer_name: string;
+  customer_avatar_url: string | null;
   summary: string;
   total_amount: number;
   status: OrderStatus;
@@ -82,11 +85,6 @@ const TABS: { label: string; value: TabValue }[] = [
   { label: 'Ready',     value: 'ready'     },
 ];
 
-function initials(name: string) {
-  const p = (name ?? '').trim().split(/\s+/);
-  return ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase();
-}
-
 function todayRange() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -127,7 +125,7 @@ export function OrdersScreen() {
     // in this view (join against customers/order_items/products).
     let query = supabase
       .from('order_list_view')
-      .select('id, customer_name, summary, total_amount, status, created_at')
+      .select('id, customer_id, customer_name, summary, total_amount, status, created_at')
       .eq('organization_id', organizationId)
       .gte('created_at', start)
       .lte('created_at', end)
@@ -142,9 +140,44 @@ export function OrdersScreen() {
     if (err) {
       console.error('Failed to load orders:', err);
       setError(true);
-    } else {
-      setOrders((data ?? []) as OrderRow[]);
+      setLoading(false);
+      return;
     }
+
+    const rows = (data ?? []) as Array<Omit<OrderRow, 'customer_avatar_url'>>;
+
+    if (rows.length === 0) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+
+    // order_list_view doesn't expose the customer's avatar, so fetch
+    // it directly from customers and merge it in here — same pattern
+    // fetchConversationList uses for the Messages inbox.
+    const customerIds = [...new Set(rows.map((o) => o.customer_id))];
+    const { data: customers, error: customersError } = await supabase
+      .from('customers')
+      .select('id, facebook_profile_pic_url')
+      .in('id', customerIds);
+
+    if (customersError) {
+      console.error('Failed to load customer avatars:', customersError);
+      setOrders(rows.map((o) => ({ ...o, customer_avatar_url: null })));
+      setLoading(false);
+      return;
+    }
+
+    const avatarByCustomerId = new Map(
+      (customers ?? []).map((c) => [c.id, c.facebook_profile_pic_url as string | null])
+    );
+
+    setOrders(
+      rows.map((o) => ({
+        ...o,
+        customer_avatar_url: avatarByCustomerId.get(o.customer_id) ?? null,
+      }))
+    );
     setLoading(false);
   }
 
@@ -324,37 +357,65 @@ export function OrdersScreen() {
                   className="divide-y divide-platinum/60"
                   variants={listContainer} initial="hidden" animate="visible"
                 >
-                  {orders.map((order) => (
-                    <motion.div key={order.id} layout="position" className="relative">
-                      <motion.div
-                        variants={listRow}
-                        whileTap={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
-                        className="flex md:grid md:grid-cols-[1fr_2fr_1fr_auto] items-center gap-3.5 md:gap-4 px-5 md:px-6 py-4"
-                      >
-                        {/* Mobile layout */}
-                        <div className="flex items-center gap-3 min-w-0 flex-1 md:contents">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent-light/70 to-accent-light/30 flex items-center justify-center text-[12px] font-bold text-accent-dark shrink-0 tracking-wide md:hidden">
-                            {initials(order.customer_name)}
-                          </div>
-                          <div className="min-w-0 flex-1 md:flex md:flex-col md:justify-center">
-                            <p className="text-[15px] font-semibold text-accent-dark truncate leading-snug">
-                              {order.customer_name}
-                            </p>
-                            <p className="text-[13px] text-olive truncate">{order.summary}</p>
-                          </div>
-                          <span className="hidden md:block text-[15px] font-bold text-accent-dark tabular-nums whitespace-nowrap">
-                            {formatPrice(order.total_amount)}
-                          </span>
-                        </div>
+                  {orders.map((order) => {
+                    const hasAvatar = !!order.customer_avatar_url;
+                    const preset = getAvatarPreset(order.customer_id);
 
-                        {/* Mobile: price + status */}
-                        <div className="flex flex-col items-end gap-1.5 shrink-0 md:hidden">
-                          <span className="text-[15px] font-bold text-accent-dark tabular-nums">
-                            {formatPrice(order.total_amount)}
-                          </span>
+                    return (
+                      <motion.div key={order.id} layout="position" className="relative">
+                        <motion.div
+                          variants={listRow}
+                          whileTap={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
+                          className="flex md:grid md:grid-cols-[1fr_2fr_1fr_auto] items-center gap-3.5 md:gap-4 px-5 md:px-6 py-4"
+                        >
+                          {/* Mobile layout */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1 md:contents">
+                            <img
+                              src={hasAvatar ? order.customer_avatar_url! : preset.src}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover bg-platinum shrink-0 md:hidden"
+                              onError={(e) => {
+                                // Facebook picture URLs can expire or 404 occasionally.
+                                // Falling back to the preset bear avatar keeps the row from breaking.
+                                if (e.currentTarget.src !== window.location.origin + preset.src) {
+                                  e.currentTarget.src = preset.src;
+                                }
+                              }}
+                            />
+                            <div className="min-w-0 flex-1 md:flex md:flex-col md:justify-center">
+                              <p className="text-[15px] font-semibold text-accent-dark truncate leading-snug">
+                                {order.customer_name}
+                              </p>
+                              <p className="text-[13px] text-olive truncate">{order.summary}</p>
+                            </div>
+                            <span className="hidden md:block text-[15px] font-bold text-accent-dark tabular-nums whitespace-nowrap">
+                              {formatPrice(order.total_amount)}
+                            </span>
+                          </div>
+
+                          {/* Mobile: price + status */}
+                          <div className="flex flex-col items-end gap-1.5 shrink-0 md:hidden">
+                            <span className="text-[15px] font-bold text-accent-dark tabular-nums">
+                              {formatPrice(order.total_amount)}
+                            </span>
+                            <button
+                              onClick={() => handleStatusPillTap(order)}
+                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLES[order.status]}`}
+                            >
+                              {STATUS_LABEL[order.status]}
+                              <motion.span
+                                animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                <ChevronRight size={10} strokeWidth={2.5} />
+                              </motion.span>
+                            </button>
+                          </div>
+
+                          {/* Desktop: status pill */}
                           <button
                             onClick={() => handleStatusPillTap(order)}
-                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLES[order.status]}`}
+                            className={`hidden md:inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${STATUS_STYLES[order.status]}`}
                           >
                             {STATUS_LABEL[order.status]}
                             <motion.span
@@ -364,53 +425,39 @@ export function OrdersScreen() {
                               <ChevronRight size={10} strokeWidth={2.5} />
                             </motion.span>
                           </button>
-                        </div>
+                        </motion.div>
 
-                        {/* Desktop: status pill */}
-                        <button
-                          onClick={() => handleStatusPillTap(order)}
-                          className={`hidden md:inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${STATUS_STYLES[order.status]}`}
-                        >
-                          {STATUS_LABEL[order.status]}
-                          <motion.span
-                            animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
-                            transition={{ duration: 0.15 }}
-                          >
-                            <ChevronRight size={10} strokeWidth={2.5} />
-                          </motion.span>
-                        </button>
+                        {/* Inline next-status menu */}
+                        <AnimatePresence>
+                          {openMenuOrderId === order.id && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -4 }}
+                              transition={{ duration: 0.18, ease: EASE }}
+                              className="px-5 md:px-6 pb-4 flex flex-wrap gap-2"
+                            >
+                              {menuLoading ? (
+                                <span className="text-xs text-olive">Loading options…</span>
+                              ) : menuOptions.length === 0 ? (
+                                <span className="text-xs text-olive">No further status changes available.</span>
+                              ) : (
+                                menuOptions.map((status) => (
+                                  <button
+                                    key={status}
+                                    onClick={() => handleSelectNextStatus(order.id, status)}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-full bg-accent-dark text-white transition-transform duration-150 active:scale-95"
+                                  >
+                                    Move to {STATUS_LABEL[status]}
+                                  </button>
+                                ))
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </motion.div>
-
-                      {/* Inline next-status menu */}
-                      <AnimatePresence>
-                        {openMenuOrderId === order.id && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.18, ease: EASE }}
-                            className="px-5 md:px-6 pb-4 flex flex-wrap gap-2"
-                          >
-                            {menuLoading ? (
-                              <span className="text-xs text-olive">Loading options…</span>
-                            ) : menuOptions.length === 0 ? (
-                              <span className="text-xs text-olive">No further status changes available.</span>
-                            ) : (
-                              menuOptions.map((status) => (
-                                <button
-                                  key={status}
-                                  onClick={() => handleSelectNextStatus(order.id, status)}
-                                  className="text-xs font-semibold px-3 py-1.5 rounded-full bg-accent-dark text-white transition-transform duration-150 active:scale-95"
-                                >
-                                  Move to {STATUS_LABEL[status]}
-                                </button>
-                              ))
-                            )}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  ))}
+                    );
+                  })}
                 </motion.div>
               </>
             )}
