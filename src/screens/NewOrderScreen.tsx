@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { ArrowLeft, Search, UserPlus, Check } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { Dropdown } from '../components/ui/Dropdown';
@@ -126,7 +126,6 @@ export function NewOrderScreen() {
   });
 
   // Earliest bookable date, driven by the selected product's lead_time_days.
-  // Drop this (and the minDate prop below) if you'd rather not enforce it yet.
   const minEventDate = productDetails
     ? toDateString(new Date(Date.now() + productDetails.lead_time_days * 86_400_000))
     : undefined;
@@ -171,265 +170,306 @@ export function NewOrderScreen() {
 
   return (
     <ScreenShell>
-      <motion.div
-        custom={0} variants={fadeUp} initial="hidden" animate="visible"
-        className="flex items-center gap-3 mb-6"
-      >
-        <button
-          onClick={() => navigate('/orders')}
-          className="w-10 h-10 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] flex items-center justify-center transition-transform duration-150 active:scale-90 shrink-0"
-          aria-label="Back to Orders"
+      <MotionConfig reducedMotion="user">
+        <motion.div
+          custom={0} variants={fadeUp} initial="hidden" animate="visible"
+          className="flex items-center gap-3 mb-6"
         >
-          <ArrowLeft size={17} className="text-olive" />
-        </button>
-        <h1 className="font-display text-[22px] font-bold tracking-tight text-accent-dark">
-          New Order
-        </h1>
-      </motion.div>
+          <button
+            onClick={() => navigate('/orders')}
+            className="w-10 h-10 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] flex items-center justify-center transition-transform duration-150 active:scale-90 shrink-0"
+            aria-label="Back to Orders"
+          >
+            <ArrowLeft size={17} className="text-olive" />
+          </button>
+          <h1 className="font-display text-[22px] font-bold tracking-tight text-accent-dark">
+            New Order
+          </h1>
+        </motion.div>
 
-      <div className="space-y-5 max-w-lg">
-        {/* Customer */}
-        <motion.section
-          custom={1} variants={fadeUp} initial="hidden" animate="visible"
-          className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
-        >
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-3">Customer</p>
+        <div className="space-y-5 max-w-lg">
+          {/* Customer */}
+          <motion.section
+            custom={1} variants={fadeUp} initial="hidden" animate="visible"
+            className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-3">Customer</p>
 
-          {selectedCustomer ? (
-            <div className="flex items-center justify-between bg-accent-light/20 rounded-[12px] px-3 py-2.5">
-              <div>
-                <p className="text-[14px] font-semibold text-accent-dark">{selectedCustomer.full_name}</p>
-                {selectedCustomer.phone_number && (
-                  <p className="text-[12px] text-olive">{selectedCustomer.phone_number}</p>
-                )}
-              </div>
-              <button
-                onClick={() => setSelectedCustomer(null)}
-                className="text-[12px] font-semibold text-accent-dark underline"
-              >
-                Change
-              </button>
-            </div>
-          ) : addingNewCustomer ? (
-            <div className="space-y-2">
-              <input
-                value={newCustomerName}
-                onChange={(e) => setNewCustomerName(e.target.value)}
-                placeholder="Customer's full name"
-                className="w-full px-3 py-2.5 rounded-[10px] border border-platinum text-[14px] focus:outline-none focus:border-accent-dark/40"
-              />
-              <input
-                value={newCustomerPhone}
-                onChange={(e) => setNewCustomerPhone(e.target.value)}
-                placeholder="Phone number (optional)"
-                className="w-full px-3 py-2.5 rounded-[10px] border border-platinum text-[14px] focus:outline-none focus:border-accent-dark/40"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={handleCreateNewCustomer}
-                  disabled={!newCustomerName.trim()}
-                  className="flex-1 text-[13px] font-semibold px-3 py-2 rounded-[10px] bg-accent-dark text-white disabled:opacity-40"
+            <AnimatePresence mode="wait">
+              {selectedCustomer ? (
+                <motion.div
+                  key="selected"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="flex items-center justify-between bg-accent-light/20 rounded-[12px] px-3 py-2.5"
                 >
-                  Add customer
-                </button>
-                <button
-                  onClick={() => setAddingNewCustomer(false)}
-                  className="text-[13px] font-semibold px-3 py-2 rounded-[10px] text-olive"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="relative mb-2">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-olive/60" />
-                <input
-                  value={customerQuery}
-                  onChange={(e) => setCustomerQuery(e.target.value)}
-                  placeholder="Search customer by name…"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-[10px] border border-platinum text-[14px] focus:outline-none focus:border-accent-dark/40"
-                />
-              </div>
-
-              {customerResults.length > 0 && (
-                <div className="space-y-1 mb-2">
-                  {customerResults.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        setSelectedCustomer(c);
-                        setCustomerQuery('');
-                        setCustomerResults([]);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-[10px] hover:bg-platinum/50 text-[14px] text-accent-dark"
-                    >
-                      {c.full_name}
-                      {c.phone_number && <span className="text-olive text-[12px]"> · {c.phone_number}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <button
-                onClick={() => setAddingNewCustomer(true)}
-                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark"
-              >
-                <UserPlus size={14} />
-                Add a new customer
-              </button>
-            </>
-          )}
-        </motion.section>
-
-        {/* Product */}
-        <motion.section
-          custom={2} variants={fadeUp} initial="hidden" animate="visible"
-          className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
-        >
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-3">Product</p>
-
-          <Dropdown
-            options={productOptions}
-            value={selectedProductId}
-            onChange={(id) => setSelectedProductId(id)}
-            placeholder="Select a product…"
-            className="mb-3"
-          />
-
-          {productDetails && (
-            <>
-              <p className="text-[12px] font-semibold text-olive mb-1.5">Size / variant</p>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {productDetails.variants.filter((v) => v.is_active).map((v) => (
+                  <div>
+                    <p className="text-[14px] font-semibold text-accent-dark">{selectedCustomer.full_name}</p>
+                    {selectedCustomer.phone_number && (
+                      <p className="text-[12px] text-olive">{selectedCustomer.phone_number}</p>
+                    )}
+                  </div>
                   <button
-                    key={v.id}
-                    onClick={() => setSelectedVariantId(v.id)}
-                    className={`px-3 py-1.5 rounded-full text-[13px] font-semibold border ${
-                      selectedVariantId === v.id
-                        ? 'bg-accent-dark text-white border-accent-dark'
-                        : 'bg-white text-accent-dark border-platinum'
-                    }`}
+                    onClick={() => setSelectedCustomer(null)}
+                    className="text-[12px] font-semibold text-accent-dark underline"
                   >
-                    {v.name}
+                    Change
                   </button>
-                ))}
-              </div>
+                </motion.div>
+              ) : addingNewCustomer ? (
+                <motion.div
+                  key="adding"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="space-y-2"
+                >
+                  <input
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    placeholder="Customer's full name"
+                    className="w-full px-3 py-2.5 rounded-[10px] border border-platinum text-[14px] focus:outline-none focus:border-accent-dark/40"
+                  />
+                  <input
+                    value={newCustomerPhone}
+                    onChange={(e) => setNewCustomerPhone(e.target.value)}
+                    placeholder="Phone number (optional)"
+                    className="w-full px-3 py-2.5 rounded-[10px] border border-platinum text-[14px] focus:outline-none focus:border-accent-dark/40"
+                  />
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={handleCreateNewCustomer}
+                      disabled={!newCustomerName.trim()}
+                      className="flex-1 text-[13px] font-semibold px-3 py-2 rounded-[10px] bg-accent-dark text-white disabled:opacity-40"
+                    >
+                      Add customer
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => setAddingNewCustomer(false)}
+                      className="text-[13px] font-semibold px-3 py-2 rounded-[10px] text-olive"
+                    >
+                      Cancel
+                    </motion.button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="search"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <div className="relative mb-2">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-olive/60" />
+                    <input
+                      value={customerQuery}
+                      onChange={(e) => setCustomerQuery(e.target.value)}
+                      placeholder="Search customer by name…"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-[10px] border border-platinum text-[14px] focus:outline-none focus:border-accent-dark/40"
+                    />
+                  </div>
 
-              {productDetails.options.map((option) => (
-                <div key={option.id} className="mb-4">
-                  <p className="text-[12px] font-semibold text-olive mb-1.5">
-                    {option.name}{option.is_required && <span className="text-red-500"> *</span>}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {option.values.map((value) => (
-                      <button
-                        key={value.id}
-                        onClick={() =>
-                          setSelectedOptionValues((prev) => ({ ...prev, [option.id]: value.id }))
-                        }
+                  {customerResults.length > 0 && (
+                    <div className="space-y-1 mb-2">
+                      {customerResults.map((c) => (
+                        <motion.button
+                          key={c.id}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setSelectedCustomer(c);
+                            setCustomerQuery('');
+                            setCustomerResults([]);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-[10px] hover:bg-platinum/50 text-[14px] text-accent-dark"
+                        >
+                          {c.full_name}
+                          {c.phone_number && <span className="text-olive text-[12px]"> · {c.phone_number}</span>}
+                        </motion.button>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setAddingNewCustomer(true)}
+                    className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark"
+                  >
+                    <UserPlus size={14} />
+                    Add a new customer
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.section>
+
+          {/* Product */}
+          <motion.section
+            custom={2} variants={fadeUp} initial="hidden" animate="visible"
+            className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-3">Product</p>
+
+            <Dropdown
+              options={productOptions}
+              value={selectedProductId}
+              onChange={(id) => setSelectedProductId(id)}
+              placeholder="Select a product…"
+              className="mb-3"
+            />
+
+            <AnimatePresence>
+              {productDetails && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.22, ease: EASE }}
+                >
+                  <p className="text-[12px] font-semibold text-olive mb-1.5">Size / variant</p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {productDetails.variants.filter((v) => v.is_active).map((v) => (
+                      <motion.button
+                        key={v.id}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setSelectedVariantId(v.id)}
                         className={`px-3 py-1.5 rounded-full text-[13px] font-semibold border ${
-                          selectedOptionValues[option.id] === value.id
+                          selectedVariantId === v.id
                             ? 'bg-accent-dark text-white border-accent-dark'
                             : 'bg-white text-accent-dark border-platinum'
                         }`}
                       >
-                        {value.value}
-                      </button>
+                        {v.name}
+                      </motion.button>
                     ))}
                   </div>
-                </div>
-              ))}
 
-              <div className="flex items-center justify-between">
-                <p className="text-[12px] font-semibold text-olive">Quantity</p>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className="w-8 h-8 rounded-full bg-platinum flex items-center justify-center text-accent-dark font-bold"
-                  >
-                    −
-                  </button>
-                  <span className="text-[15px] font-semibold text-accent-dark w-6 text-center">{quantity}</span>
-                  <button
-                    onClick={() => setQuantity((q) => q + 1)}
-                    className="w-8 h-8 rounded-full bg-platinum flex items-center justify-center text-accent-dark font-bold"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </motion.section>
+                  {productDetails.options.map((option) => (
+                    <div key={option.id} className="mb-4">
+                      <p className="text-[12px] font-semibold text-olive mb-1.5">
+                        {option.name}{option.is_required && <span className="text-red-500"> *</span>}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {option.values.map((value) => (
+                          <motion.button
+                            key={value.id}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() =>
+                              setSelectedOptionValues((prev) => ({ ...prev, [option.id]: value.id }))
+                            }
+                            className={`px-3 py-1.5 rounded-full text-[13px] font-semibold border ${
+                              selectedOptionValues[option.id] === value.id
+                                ? 'bg-accent-dark text-white border-accent-dark'
+                                : 'bg-white text-accent-dark border-platinum'
+                            }`}
+                          >
+                            {value.value}
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
 
-        {/* Fulfillment */}
-        <motion.section
-          custom={3} variants={fadeUp} initial="hidden" animate="visible"
-          className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
-        >
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-3">Fulfillment</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[12px] font-semibold text-olive">Quantity</p>
+                    <div className="flex items-center gap-3">
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        className="w-10 h-10 rounded-full bg-platinum flex items-center justify-center text-accent-dark font-bold"
+                      >
+                        −
+                      </motion.button>
+                      <span className="text-[15px] font-semibold text-accent-dark w-6 text-center">{quantity}</span>
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setQuantity((q) => q + 1)}
+                        className="w-10 h-10 rounded-full bg-platinum flex items-center justify-center text-accent-dark font-bold"
+                      >
+                        +
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.section>
 
-          <p className="text-[12px] font-semibold text-olive mb-1.5">Event date</p>
-          <CalendarInput
-            value={eventDate}
-            onChange={setEventDate}
-            placeholder="Select event date…"
-            minDate={minEventDate}
-            className="mb-4"
-          />
-
-          <p className="text-[12px] font-semibold text-olive mb-1.5">Method</p>
-          <div className="flex gap-2">
-            {(['pickup', 'delivery'] as const).map((method) => (
-              <button
-                key={method}
-                onClick={() => setFulfillmentMethod(method)}
-                className={`flex-1 px-3 py-2.5 rounded-[10px] text-[13px] font-semibold border capitalize ${
-                  fulfillmentMethod === method
-                    ? 'bg-accent-dark text-white border-accent-dark'
-                    : 'bg-white text-accent-dark border-platinum'
-                }`}
-              >
-                {method}
-              </button>
-            ))}
-          </div>
-          {fulfillmentMethod === 'delivery' && (
-            <p className="text-[12px] text-olive mt-2">
-              Delivery address collection isn't built yet — you'll need to arrange the address with the customer directly for now.
-            </p>
-          )}
-        </motion.section>
-
-        {/* Price + submit */}
-        <motion.section
-          custom={4} variants={fadeUp} initial="hidden" animate="visible"
-          className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
-        >
-          {priceError ? (
-            <p className="text-[13px] text-red-600 mb-3">{priceError}</p>
-          ) : unitPrice !== null ? (
-            <div className="flex items-baseline justify-between mb-3">
-              <p className="text-[13px] text-olive">Total ({quantity} ×)</p>
-              <p className="text-[20px] font-bold text-accent-dark">{formatPrice(unitPrice * quantity)}</p>
-            </div>
-          ) : (
-            <p className="text-[13px] text-olive mb-3">Select a product and size to see the price.</p>
-          )}
-
-          {submitError && <p className="text-[13px] text-red-600 mb-3">{submitError}</p>}
-
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="w-full flex items-center justify-center gap-2 h-12 rounded-[14px] bg-accent-dark text-white font-semibold transition-transform duration-150 active:scale-[0.98] disabled:opacity-40"
+          {/* Fulfillment */}
+          <motion.section
+            custom={3} variants={fadeUp} initial="hidden" animate="visible"
+            className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
           >
-            <Check size={16} />
-            {submitting ? 'Creating order…' : 'Create order'}
-          </button>
-        </motion.section>
-      </div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-3">Fulfillment</p>
+
+            <p className="text-[12px] font-semibold text-olive mb-1.5">Event date</p>
+            <CalendarInput
+              value={eventDate}
+              onChange={setEventDate}
+              placeholder="Select event date…"
+              minDate={minEventDate}
+              className="mb-4"
+            />
+
+            <p className="text-[12px] font-semibold text-olive mb-1.5">Method</p>
+            <div className="flex gap-2">
+              {(['pickup', 'delivery'] as const).map((method) => (
+                <motion.button
+                  key={method}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setFulfillmentMethod(method)}
+                  className={`flex-1 px-3 py-2.5 rounded-[10px] text-[13px] font-semibold border capitalize ${
+                    fulfillmentMethod === method
+                      ? 'bg-accent-dark text-white border-accent-dark'
+                      : 'bg-white text-accent-dark border-platinum'
+                  }`}
+                >
+                  {method}
+                </motion.button>
+              ))}
+            </div>
+            <AnimatePresence>
+              {fulfillmentMethod === 'delivery' && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.18 }}
+                  className="text-[12px] text-olive mt-2"
+                >
+                  Delivery address collection isn't built yet — you'll need to arrange the address with the customer directly for now.
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </motion.section>
+
+          {/* Price + submit */}
+          <motion.section
+            custom={4} variants={fadeUp} initial="hidden" animate="visible"
+            className="bg-white rounded-[18px] p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
+          >
+            {priceError ? (
+              <p className="text-[13px] text-red-600 mb-3">{priceError}</p>
+            ) : unitPrice !== null ? (
+              <div className="flex items-baseline justify-between mb-3">
+                <p className="text-[13px] text-olive">Total ({quantity} ×)</p>
+                <p className="text-[20px] font-bold text-accent-dark">{formatPrice(unitPrice * quantity)}</p>
+              </div>
+            ) : (
+              <p className="text-[13px] text-olive mb-3">Select a product and size to see the price.</p>
+            )}
+
+            {submitError && <p className="text-[13px] text-red-600 mb-3">{submitError}</p>}
+
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className="w-full flex items-center justify-center gap-2 h-12 rounded-[14px] bg-accent-dark text-white font-semibold transition-transform duration-150 active:scale-[0.98] disabled:opacity-40"
+            >
+              <Check size={16} />
+              {submitting ? 'Creating order…' : 'Create order'}
+            </button>
+          </motion.section>
+        </div>
+      </MotionConfig>
     </ScreenShell>
   );
 }
