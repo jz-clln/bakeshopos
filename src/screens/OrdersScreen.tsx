@@ -122,8 +122,13 @@ export function OrdersScreen() {
     setError(false);
     const { start, end } = todayRange();
 
+    // order_list_view, not the raw orders table — customer_name and
+    // summary aren't real columns on orders itself, they're computed
+    // in this view (join against customers/order_items/products).
+    // Querying orders directly for these columns fails every time,
+    // which is what was causing "Couldn't load orders" unconditionally.
     let query = supabase
-      .from('orders')
+      .from('order_list_view')
       .select('id, customer_name, summary, total_amount, status, created_at')
       .eq('organization_id', organizationId)
       .gte('created_at', start)
@@ -137,6 +142,7 @@ export function OrdersScreen() {
     const { data, error: err } = await query;
 
     if (err) {
+      console.error('Failed to load orders:', err);
       setError(true);
     } else {
       setOrders((data ?? []) as OrderRow[]);
