@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check } from 'lucide-react';
+import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check, Receipt } from 'lucide-react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   fetchConversationDetail,
@@ -14,12 +14,20 @@ import {
   type ConversationDetail,
   type MessageRow,
 } from '../api/messages';
+import {
+  fetchPendingOrderForConversation,
+  acceptDraftOrder,
+  rejectDraftOrder,
+  type PendingConversationOrder,
+} from '../api/orders';
 import { uploadMessageAttachment } from '../api/attachments';
 import { updateCustomerName } from '../api/customers';
 import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
+import { formatPrice } from '../lib/currency';
 import { EmojiPicker } from '../components/messages/EmojiPicker';
 import { ChannelIcon } from '../components/messages/ChannelIcon';
+import { OrderDetailModal } from '../components/orders/OrderDetailModal';
 import { getAvatarPreset } from '../lib/avatarPresets';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -65,6 +73,16 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
 }
 
+// event_date is a plain date with no time/timezone — parsing it with
+// `new Date(iso)` directly can shift it a day depending on the
+// browser's local timezone, same issue OrderDetailModal.tsx's
+// formatEventDate already works around.
+function formatOrderEventDate(iso: string): string {
+  const [year, month, day] = iso.split(/[-T]/).map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-PH', { month: 'long', day: 'numeric' });
+}
+
 export function ConversationDetailScreen() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
@@ -85,6 +103,16 @@ export function ConversationDetailScreen() {
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+
+  // The AI's most recent still-undecided (status: inquiry) order for
+  // this conversation, shown as a review banner until the owner
+  // accepts or rejects it. viewingOrderId opens the full existing
+  // OrderDetailModal on top of the banner for a closer look before
+  // deciding.
+  const [pendingOrder, setPendingOrder] = useState<PendingConversationOrder | null>(null);
+  const [decidingOrder, setDecidingOrder] = useState(false);
+  const [orderActionError, setOrderActionError] = useState<string | null>(null);
+  const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
 
   // Selected image staged for sending, plus a local preview URL —
   // separate from the uploaded state, since the file isn't uploaded
@@ -109,7 +137,11 @@ export function ConversationDetailScreen() {
   // sent by the owner from another tab/device) drop straight into
   // the conversation without a manual refresh. Row updates cover a
   // delivery_status flipping from queued to sent/failed after the
-  // fact. Both are filtered to this exact conversation_id.
+  // fact. Both are filtered to this exact conversation_id. The orders
+  // listener refreshes the pending-order banner the same way: a new
+  // draft_order INSERT shows the banner, and an UPDATE (accepted or
+  // rejected from another tab/device) hides it in sync, since the
+  // refetch only ever returns a row still sitting at status inquiry.
   useEffect(() => {
     if (!conversationId) return;
 
@@ -163,6 +195,20 @@ export function ConversationDetailScreen() {
           setConversation((prev) => (prev ? { ...prev, handler: updated.handler } : prev));
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          fetchPendingOrderForConversation(conversationId)
+            .then(setPendingOrder)
+            .catch((err) => console.error('Failed to refresh pending order:', err));
+        }
+      )
       .subscribe();
 
     channelRef.current = channel;
@@ -177,12 +223,14 @@ export function ConversationDetailScreen() {
     if (!conversationId) return;
     setLoading(true);
 
-    const [detail, rows] = await Promise.all([
+    const [detail, rows, pending] = await Promise.all([
       fetchConversationDetail(conversationId),
       fetchMessages(conversationId),
+      fetchPendingOrderForConversation(conversationId),
     ]);
     setConversation(detail);
     setMessages(rows);
+    setPendingOrder(pending);
 
     await markConversationViewed(conversationId);
     setLoading(false);
@@ -198,6 +246,36 @@ export function ConversationDetailScreen() {
       console.error('Failed to hand back to AI:', err);
     } finally {
       setSwitchingHandler(false);
+    }
+  }
+
+  async function handleAcceptOrder() {
+    if (!pendingOrder || decidingOrder) return;
+    setDecidingOrder(true);
+    setOrderActionError(null);
+    try {
+      await acceptDraftOrder(pendingOrder.id);
+      setPendingOrder(null);
+    } catch (err) {
+      console.error('Failed to accept order:', err);
+      setOrderActionError(err instanceof Error ? err.message : 'Could not accept this order.');
+    } finally {
+      setDecidingOrder(false);
+    }
+  }
+
+  async function handleRejectOrder() {
+    if (!pendingOrder || decidingOrder) return;
+    setDecidingOrder(true);
+    setOrderActionError(null);
+    try {
+      await rejectDraftOrder(pendingOrder.id);
+      setPendingOrder(null);
+    } catch (err) {
+      console.error('Failed to reject order:', err);
+      setOrderActionError(err instanceof Error ? err.message : 'Could not reject this order.');
+    } finally {
+      setDecidingOrder(false);
     }
   }
 
@@ -428,6 +506,63 @@ export function ConversationDetailScreen() {
         </motion.div>
       )}
 
+      {/* Pending order banner — shown while an AI-drafted order for
+          this conversation is still sitting at status: inquiry. */}
+      {!loading && pendingOrder && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          className="shrink-0 px-5 md:px-10 pt-3 max-w-5xl mx-auto w-full"
+        >
+          <div className="rounded-[14px] bg-amber-50 border border-amber-200/70 px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark">
+                  <Receipt size={13} className="text-amber-600 shrink-0" />
+                  New order awaiting your confirmation
+                </p>
+                <p className="text-[12px] text-olive truncate mt-0.5">{pendingOrder.item_summary}</p>
+                {pendingOrder.event_date && (
+                  <p className="text-[11px] text-olive/80 mt-0.5">
+                    For {formatOrderEventDate(pendingOrder.event_date)}
+                  </p>
+                )}
+              </div>
+              <span className="shrink-0 text-[15px] font-bold text-accent-dark tabular-nums">
+                {formatPrice(pendingOrder.total_amount)}
+              </span>
+            </div>
+
+            {orderActionError && (
+              <p className="text-[11px] text-red-600 mt-2">{orderActionError}</p>
+            )}
+
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                onClick={() => setViewingOrderId(pendingOrder.id)}
+                className="text-[12px] font-medium text-accent-dark underline underline-offset-2"
+              >
+                View details
+              </button>
+              <div className="flex-1" />
+              <button
+                onClick={handleRejectOrder}
+                disabled={decidingOrder}
+                className="text-[13px] font-semibold px-3.5 py-1.5 rounded-full bg-white text-red-600 border border-red-200 transition-transform duration-150 active:scale-95 disabled:opacity-50"
+              >
+                Reject
+              </button>
+              <button
+                onClick={handleAcceptOrder}
+                disabled={decidingOrder}
+                className="text-[13px] font-semibold px-3.5 py-1.5 rounded-full bg-accent-dark text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
+              >
+                {decidingOrder ? 'Saving…' : 'Accept'}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Message list */}
       <div
         className="flex-1 overflow-y-auto min-h-0 px-5 md:px-10"
@@ -610,6 +745,10 @@ export function ConversationDetailScreen() {
           </div>
         </div>
       </div>
+
+      {viewingOrderId && (
+        <OrderDetailModal orderId={viewingOrderId} onClose={() => setViewingOrderId(null)} />
+      )}
     </div>
   );
 }

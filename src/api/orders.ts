@@ -193,3 +193,74 @@ export async function fetchOrderDetail(orderId: string): Promise<OrderDetail> {
     })),
   };
 }
+
+export interface PendingConversationOrder {
+  id: string;
+  total_amount: number;
+  currency: string;
+  event_date: string | null;
+  item_summary: string;
+}
+
+/**
+ * The most recent still-undecided (status: inquiry) order tied to a
+ * Messenger conversation, for the owner-review banner in
+ * ConversationDetailScreen. draft_order (the AI's tool) stamps
+ * conversation_id on insert, so this is scoped to that one thread.
+ * Returns null once the owner has accepted/rejected it (the order
+ * has moved off 'inquiry') or if the AI hasn't drafted one yet.
+ */
+export async function fetchPendingOrderForConversation(
+  conversationId: string
+): Promise<PendingConversationOrder | null> {
+  const { data: order, error } = await supabase
+    .from('orders')
+    .select('id, total_amount, currency, event_date')
+    .eq('conversation_id', conversationId)
+    .eq('status', 'inquiry')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!order) return null;
+
+  const { data: items, error: itemsError } = await supabase
+    .from('order_items')
+    .select('quantity, products(name), product_variants(name)')
+    .eq('order_id', order.id);
+
+  if (itemsError) throw new Error(itemsError.message);
+
+  const item_summary = (items ?? [])
+    .map((it: any) => {
+      const variantLabel = it.product_variants?.name ? ` (${it.product_variants.name})` : '';
+      return `${it.quantity}x ${it.products?.name ?? 'Item'}${variantLabel}`;
+    })
+    .join(', ');
+
+  return {
+    id: order.id,
+    total_amount: order.total_amount,
+    currency: order.currency,
+    event_date: order.event_date,
+    item_summary,
+  };
+}
+
+/**
+ * Owner tapped "Accept" on an AI-drafted order. Named for intent
+ * rather than exposing the raw target status, so callers (and future
+ * ones, e.g. an Accept action added to OrdersScreen later) don't need
+ * to know or repeat which OrderStatus "accepted" maps to.
+ */
+export async function acceptDraftOrder(orderId: string, changedBy?: string) {
+  return transitionOrderStatus(orderId, 'confirmed', changedBy);
+}
+
+/**
+ * Owner tapped "Reject" on an AI-drafted order.
+ */
+export async function rejectDraftOrder(orderId: string, changedBy?: string) {
+  return transitionOrderStatus(orderId, 'cancelled', changedBy);
+}
