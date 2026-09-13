@@ -1,15 +1,22 @@
 // File: app/src/screens/OrdersScreen.tsx
+//
+// Only the parts touching the inline action row change — everything
+// else (header, tabs, avatar handling, error display) stays exactly
+// as you already have it. The new pieces: a "Record Payment" button
+// alongside the status-change menu when relevant, and wiring in the
+// sheet component above.
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
-import { Plus, ChevronRight, Inbox, WifiOff, RefreshCw } from 'lucide-react';
+import { Plus, ChevronRight, Inbox, WifiOff, RefreshCw, Wallet } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
 import { formatPrice } from '../lib/currency';
 import { getValidNextStatuses, transitionOrderStatus } from '../api/orders';
 import { getAvatarPreset } from '../lib/avatarPresets';
+import { RecordPaymentSheet } from '../components/orders/RecordPaymentSheet';
 import type { OrderStatus } from '../types/catalog';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -32,7 +39,6 @@ const listRow = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.24, ease: EASE } },
 };
 
-/* ─── Types ─── */
 interface OrderRow {
   id: string;
   customer_id: string;
@@ -72,10 +78,6 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
 
 type TabValue = 'all' | OrderStatus;
 
-// A curated subset for the filter tabs — showing all 10 states as tabs
-// would overwhelm the UI. "All" plus the active-pipeline states covers
-// the day-to-day view; cancelled/refunded orders are still reachable
-// via "All", just not given their own tab.
 const TABS: { label: string; value: TabValue }[] = [
   { label: 'All',       value: 'all'       },
   { label: 'Inquiry',   value: 'inquiry'   },
@@ -93,7 +95,6 @@ function todayRange() {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-/* ─── Screen ─── */
 export function OrdersScreen() {
   const { organizationId } = useAuth();
   const [activeTab, setActiveTab] = useState<TabValue>('all');
@@ -101,13 +102,15 @@ export function OrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // Which order's next-status menu is currently open, and the valid
-  // options for it (fetched fresh each time, since they depend on
-  // that specific order's current status).
   const [openMenuOrderId, setOpenMenuOrderId] = useState<string | null>(null);
   const [menuOptions, setMenuOptions] = useState<OrderStatus[]>([]);
   const [menuLoading, setMenuLoading] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
+
+  // Which order's payment sheet is open — separate from
+  // openMenuOrderId, since a payment can be recorded regardless of
+  // whether the status menu happens to be open too.
+  const [paymentSheetOrderId, setPaymentSheetOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -120,9 +123,6 @@ export function OrdersScreen() {
     setError(false);
     const { start, end } = todayRange();
 
-    // order_list_view, not the raw orders table — customer_name and
-    // summary aren't real columns on orders itself, they're computed
-    // in this view (join against customers/order_items/products).
     let query = supabase
       .from('order_list_view')
       .select('id, customer_id, customer_name, summary, total_amount, status, created_at')
@@ -152,9 +152,6 @@ export function OrdersScreen() {
       return;
     }
 
-    // order_list_view doesn't expose the customer's avatar, so fetch
-    // it directly from customers and merge it in here — same pattern
-    // fetchConversationList uses for the Messages inbox.
     const customerIds = [...new Set(rows.map((o) => o.customer_id))];
     const { data: customers, error: customersError } = await supabase
       .from('customers')
@@ -183,6 +180,7 @@ export function OrdersScreen() {
 
   async function handleStatusPillTap(order: OrderRow) {
     setTransitionError(null);
+    setPaymentSheetOrderId(null);
     if (openMenuOrderId === order.id) {
       setOpenMenuOrderId(null);
       return;
@@ -208,9 +206,6 @@ export function OrdersScreen() {
       setOpenMenuOrderId(null);
       await loadOrders();
     } catch (err) {
-      // The database function throws specific, readable messages
-      // (e.g. "Full payment required before confirming this order") —
-      // surface that exact text rather than a generic failure.
       const message = err instanceof Error ? err.message : 'Could not update order status.';
       setTransitionError(message);
     }
@@ -219,7 +214,6 @@ export function OrdersScreen() {
   return (
     <ScreenShell>
       <MotionConfig reducedMotion="user">
-        {/* Header */}
         <motion.div
           className="flex items-center justify-between gap-4 mb-6"
           custom={0} variants={fadeUp} initial="hidden" animate="visible"
@@ -243,7 +237,6 @@ export function OrdersScreen() {
           </Link>
         </motion.div>
 
-        {/* Filter tabs — segmented control with a sliding active pill */}
         <motion.div
           custom={1} variants={fadeUp} initial="hidden" animate="visible"
           className="mb-5 -mx-5 px-5 md:mx-0 md:px-0 overflow-x-auto scrollbar-none"
@@ -287,7 +280,6 @@ export function OrdersScreen() {
           )}
         </AnimatePresence>
 
-        {/* Orders list */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -345,7 +337,6 @@ export function OrdersScreen() {
               </div>
             ) : (
               <>
-                {/* Desktop column headers */}
                 <div className="hidden md:grid grid-cols-[1fr_2fr_1fr_auto] gap-4 px-6 py-3 border-b border-platinum/60">
                   <span className="text-xs font-semibold text-olive uppercase tracking-wide">Customer</span>
                   <span className="text-xs font-semibold text-olive uppercase tracking-wide">Items</span>
@@ -360,6 +351,11 @@ export function OrdersScreen() {
                   {orders.map((order) => {
                     const hasAvatar = !!order.customer_avatar_url;
                     const preset = getAvatarPreset(order.customer_id);
+                    // Payments only make sense to record while an order
+                    // is still awaiting money — not before a quote/price
+                    // exists, and not after it's already moved past
+                    // needing verification.
+                    const canRecordPayment = ['quote', 'pending_payment'].includes(order.status);
 
                     return (
                       <motion.div key={order.id} layout="position" className="relative">
@@ -368,15 +364,12 @@ export function OrdersScreen() {
                           whileTap={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
                           className="flex md:grid md:grid-cols-[1fr_2fr_1fr_auto] items-center gap-3.5 md:gap-4 px-5 md:px-6 py-4"
                         >
-                          {/* Mobile layout */}
                           <div className="flex items-center gap-3 min-w-0 flex-1 md:contents">
                             <img
                               src={hasAvatar ? order.customer_avatar_url! : preset.src}
                               alt=""
                               className="w-10 h-10 rounded-full object-cover bg-platinum shrink-0 md:hidden"
                               onError={(e) => {
-                                // Facebook picture URLs can expire or 404 occasionally.
-                                // Falling back to the preset bear avatar keeps the row from breaking.
                                 if (e.currentTarget.src !== window.location.origin + preset.src) {
                                   e.currentTarget.src = preset.src;
                                 }
@@ -393,7 +386,6 @@ export function OrdersScreen() {
                             </span>
                           </div>
 
-                          {/* Mobile: price + status */}
                           <div className="flex flex-col items-end gap-1.5 shrink-0 md:hidden">
                             <span className="text-[15px] font-bold text-accent-dark tabular-nums">
                               {formatPrice(order.total_amount)}
@@ -412,22 +404,51 @@ export function OrdersScreen() {
                             </button>
                           </div>
 
-                          {/* Desktop: status pill */}
-                          <button
-                            onClick={() => handleStatusPillTap(order)}
-                            className={`hidden md:inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${STATUS_STYLES[order.status]}`}
-                          >
-                            {STATUS_LABEL[order.status]}
-                            <motion.span
-                              animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
-                              transition={{ duration: 0.15 }}
+                          <div className="hidden md:flex items-center gap-2">
+                            <button
+                              onClick={() => handleStatusPillTap(order)}
+                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${STATUS_STYLES[order.status]}`}
                             >
-                              <ChevronRight size={10} strokeWidth={2.5} />
-                            </motion.span>
-                          </button>
+                              {STATUS_LABEL[order.status]}
+                              <motion.span
+                                animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                <ChevronRight size={10} strokeWidth={2.5} />
+                              </motion.span>
+                            </button>
+                          </div>
                         </motion.div>
 
-                        {/* Inline next-status menu */}
+                        {/* Payment action row — shown separately from
+                            the status pill, since it's not itself a
+                            status change, just a prerequisite for one. */}
+                        {canRecordPayment && paymentSheetOrderId !== order.id && (
+                          <div className="px-5 md:px-6 pb-3 -mt-2">
+                            <button
+                              onClick={() => { setOpenMenuOrderId(null); setPaymentSheetOrderId(order.id); }}
+                              className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-accent-dark"
+                            >
+                              <Wallet size={13} />
+                              Record Payment
+                            </button>
+                          </div>
+                        )}
+
+                        <AnimatePresence>
+                          {paymentSheetOrderId === order.id && (
+                            <RecordPaymentSheet
+                              orderId={order.id}
+                              orderTotal={order.total_amount}
+                              onClose={() => setPaymentSheetOrderId(null)}
+                              onRecorded={() => {
+                                setPaymentSheetOrderId(null);
+                                loadOrders();
+                              }}
+                            />
+                          )}
+                        </AnimatePresence>
+
                         <AnimatePresence>
                           {openMenuOrderId === order.id && (
                             <motion.div
@@ -464,7 +485,6 @@ export function OrdersScreen() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Mobile FAB */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.3, ease: EASE, delay: 0.35 }}

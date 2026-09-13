@@ -31,7 +31,7 @@ export async function fetchOrders(
   }
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return (data ?? []) as OrderListItem[];
 }
 
@@ -41,10 +41,21 @@ export async function getValidNextStatuses(currentStatus: OrderStatus): Promise<
     .select('to_status')
     .eq('from_status', currentStatus);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return (data ?? []).map((row) => row.to_status as OrderStatus);
 }
 
+/**
+ * IMPORTANT: Supabase's .rpc() returns a PostgrestError object on
+ * failure, not a real Error — it doesn't pass `instanceof Error`
+ * checks. Every catch block in the app that does
+ * `err instanceof Error ? err.message : 'generic fallback'` was
+ * silently discarding the actual, specific message this function
+ * raises (e.g. "Full payment required before confirming this
+ * order"). Wrapping it in a real Error here fixes that everywhere
+ * this function is called, without needing to touch every catch
+ * block separately.
+ */
 export async function transitionOrderStatus(
   orderId: string,
   toStatus: OrderStatus,
@@ -56,7 +67,7 @@ export async function transitionOrderStatus(
     p_changed_by: changedBy ?? null,
   });
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 
@@ -85,7 +96,7 @@ export async function createOrder(organizationId: string, input: CreateOrderInpu
     .eq('id', input.variantId)
     .single();
 
-  if (variantError) throw variantError;
+  if (variantError) throw new Error(variantError.message);
 
   const { data: order, error: orderError } = await supabase
     .from('orders')
@@ -100,7 +111,7 @@ export async function createOrder(organizationId: string, input: CreateOrderInpu
     .select('id')
     .single();
 
-  if (orderError) throw orderError;
+  if (orderError) throw new Error(orderError.message);
 
   const { error: itemError } = await supabase.from('order_items').insert({
     organization_id: organizationId,
@@ -111,7 +122,7 @@ export async function createOrder(organizationId: string, input: CreateOrderInpu
     unit_price_amount: unitPrice,
   });
 
-  if (itemError) throw itemError;
+  if (itemError) throw new Error(itemError.message);
 
   return order.id;
 }
