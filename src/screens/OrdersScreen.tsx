@@ -1,15 +1,9 @@
 // File: app/src/screens/OrdersScreen.tsx
-//
-// Only the parts touching the inline action row change — everything
-// else (header, tabs, avatar handling, error display) stays exactly
-// as you already have it. The new pieces: a "Record Payment" button
-// alongside the status-change menu when relevant, and wiring in the
-// sheet component above.
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
-import { Plus, ChevronRight, Inbox, WifiOff, RefreshCw, Wallet } from 'lucide-react';
+import { Plus, ChevronRight, Inbox, WifiOff, RefreshCw, Wallet, Calendar } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
@@ -45,9 +39,11 @@ interface OrderRow {
   customer_name: string;
   customer_avatar_url: string | null;
   summary: string;
+  total_quantity: number;
   total_amount: number;
   status: OrderStatus;
   created_at: string;
+  event_date: string | null;
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -95,6 +91,17 @@ function todayRange() {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
+function formatEventDate(iso: string | null): string | null {
+  if (!iso) return null;
+  // Split on 'T'/space rather than `new Date(iso)` — event_date is a
+  // plain date (no time/timezone), and letting the Date constructor
+  // parse it can shift it a day in either direction depending on the
+  // browser's local timezone.
+  const [year, month, day] = iso.split(/[-T]/).map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+}
+
 export function OrdersScreen() {
   const { organizationId } = useAuth();
   const [activeTab, setActiveTab] = useState<TabValue>('all');
@@ -125,7 +132,7 @@ export function OrdersScreen() {
 
     let query = supabase
       .from('order_list_view')
-      .select('id, customer_id, customer_name, summary, total_amount, status, created_at')
+      .select('id, customer_id, customer_name, summary, total_quantity, total_amount, status, created_at, event_date')
       .eq('organization_id', organizationId)
       .gte('created_at', start)
       .lte('created_at', end)
@@ -337,6 +344,7 @@ export function OrdersScreen() {
               </div>
             ) : (
               <>
+                {/* Desktop column headers */}
                 <div className="hidden md:grid grid-cols-[1fr_2fr_1fr_auto] gap-4 px-6 py-3 border-b border-platinum/60">
                   <span className="text-xs font-semibold text-olive uppercase tracking-wide">Customer</span>
                   <span className="text-xs font-semibold text-olive uppercase tracking-wide">Items</span>
@@ -351,63 +359,90 @@ export function OrdersScreen() {
                   {orders.map((order) => {
                     const hasAvatar = !!order.customer_avatar_url;
                     const preset = getAvatarPreset(order.customer_id);
-                    // Payments only make sense to record while an order
-                    // is still awaiting money — not before a quote/price
-                    // exists, and not after it's already moved past
-                    // needing verification.
                     const canRecordPayment = ['quote', 'pending_payment'].includes(order.status);
+                    const eventDateLabel = formatEventDate(order.event_date);
 
                     return (
                       <motion.div key={order.id} layout="position" className="relative">
-                        <motion.div
-                          variants={listRow}
-                          whileTap={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
-                          className="flex md:grid md:grid-cols-[1fr_2fr_1fr_auto] items-center gap-3.5 md:gap-4 px-5 md:px-6 py-4"
-                        >
-                          <div className="flex items-center gap-3 min-w-0 flex-1 md:contents">
+                        <motion.div variants={listRow} whileTap={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
+
+                          {/* ── Mobile card — fully separate markup from
+                              desktop, not a shared/collapsed layout, so
+                              nothing here can silently misalign the
+                              desktop grid or vice versa. ── */}
+                          <div className="md:hidden flex items-center gap-3 px-5 py-4">
                             <img
                               src={hasAvatar ? order.customer_avatar_url! : preset.src}
                               alt=""
-                              className="w-10 h-10 rounded-full object-cover bg-platinum shrink-0 md:hidden"
+                              className="w-10 h-10 rounded-full object-cover bg-platinum shrink-0"
                               onError={(e) => {
                                 if (e.currentTarget.src !== window.location.origin + preset.src) {
                                   e.currentTarget.src = preset.src;
                                 }
                               }}
                             />
-                            <div className="min-w-0 flex-1 md:flex md:flex-col md:justify-center">
-                              <p className="text-[15px] font-semibold text-accent-dark truncate leading-snug">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[15px] font-semibold text-accent-dark leading-snug">
                                 {order.customer_name}
                               </p>
-                              <p className="text-[13px] text-olive truncate">{order.summary}</p>
+                              {/* No truncate — full item details wrap
+                                  onto as many lines as they need, so
+                                  nothing the owner needs is ever cut off. */}
+                              <p className="text-[12px] text-olive leading-snug mt-0.5">
+                                {order.summary}
+                              </p>
+                              {eventDateLabel && order.status !== 'refunded' && (
+                                <p className="flex items-center gap-1 text-[12px] text-olive/80 mt-1">
+                                  <Calendar size={11} />
+                                  {eventDateLabel}
+                                </p>
+                              )}
                             </div>
-                            <span className="hidden md:block text-[15px] font-bold text-accent-dark tabular-nums whitespace-nowrap">
-                              {formatPrice(order.total_amount)}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-1.5 shrink-0 md:hidden">
-                            <span className="text-[15px] font-bold text-accent-dark tabular-nums">
-                              {formatPrice(order.total_amount)}
-                            </span>
-                            <button
-                              onClick={() => handleStatusPillTap(order)}
-                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLES[order.status]}`}
-                            >
-                              {STATUS_LABEL[order.status]}
-                              <motion.span
-                                animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
-                                transition={{ duration: 0.15 }}
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              <button
+                                onClick={() => handleStatusPillTap(order)}
+                                className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_STYLES[order.status]}`}
                               >
-                                <ChevronRight size={10} strokeWidth={2.5} />
-                              </motion.span>
-                            </button>
+                                {STATUS_LABEL[order.status]}
+                                <motion.span
+                                  animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
+                                  transition={{ duration: 0.15 }}
+                                >
+                                  <ChevronRight size={10} strokeWidth={2.5} />
+                                </motion.span>
+                              </button>
+                              <span className="text-[15px] font-bold text-accent-dark tabular-nums">
+                                {formatPrice(order.total_amount)}
+                              </span>
+                            </div>
                           </div>
 
-                          <div className="hidden md:flex items-center gap-2">
+                          {/* ── Desktop row — a real 4-column grid with
+                              exactly one direct child per column, so
+                              Total and Status always land under their
+                              own headers no matter what. ── */}
+                          <div className="hidden md:grid grid-cols-[1fr_2fr_1fr_auto] items-center gap-4 px-6 py-4">
+                            <p className="text-[15px] font-semibold text-accent-dark truncate">
+                              {order.customer_name}
+                            </p>
+
+                            <div className="min-w-0">
+                              <p className="text-[13px] text-accent-dark">{order.summary}</p>
+                              {eventDateLabel && order.status !== 'refunded' && (
+                                <p className="flex items-center gap-1 text-[12px] text-olive mt-0.5">
+                                  <Calendar size={11} />
+                                  Needed {eventDateLabel}
+                                </p>
+                              )}
+                            </div>
+
+                            <span className="text-[15px] font-bold text-accent-dark tabular-nums whitespace-nowrap">
+                              {formatPrice(order.total_amount)}
+                            </span>
+
                             <button
                               onClick={() => handleStatusPillTap(order)}
-                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${STATUS_STYLES[order.status]}`}
+                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit justify-self-end ${STATUS_STYLES[order.status]}`}
                             >
                               {STATUS_LABEL[order.status]}
                               <motion.span
