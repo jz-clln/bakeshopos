@@ -67,6 +67,7 @@ export function SettingsScreen() {
   const [fbConnection, setFbConnection] = useState<FacebookConnection | null>(null);
   const [loadingFb, setLoadingFb] = useState(true);
   const [fbError, setFbError] = useState<string | null>(null);
+  const [connectingFb, setConnectingFb] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
@@ -86,13 +87,25 @@ export function SettingsScreen() {
   }, [organizationId]);
 
   async function handleConnectFacebook() {
-    if (!organizationId) return;
+    // Guards against the exact bug being fixed here: a slow network
+    // means the redirect doesn't fire immediately, and with nothing
+    // visually changing, a repeat tap used to fire a second (or
+    // third) startFacebookConnect() call before the first one ever
+    // navigated away.
+    if (!organizationId || connectingFb) return;
     setFbError(null);
+    setConnectingFb(true);
     try {
       await startFacebookConnect(organizationId);
+      // No setConnectingFb(false) on success — startFacebookConnect()
+      // ends in a full-page redirect, so this component is about to
+      // unmount anyway. Leaving the button disabled/showing
+      // "Connecting…" right up until that navigation happens is the
+      // correct state, not a bug.
     } catch (err) {
       console.error(err);
       setFbError('Could not start Facebook connection. Please try again.');
+      setConnectingFb(false);
     }
   }
 
@@ -113,6 +126,8 @@ export function SettingsScreen() {
 
   const fbDescription = loadingFb
     ? 'Checking…'
+    : connectingFb
+    ? 'Connecting…'
     : fbConnection?.status === 'connected'
     ? `Connected | ${fbConnection.pageName}`
     : fbConnection?.status === 'needs_reconnect'
@@ -253,13 +268,14 @@ export function SettingsScreen() {
               <div className="flex gap-3 mt-2 pl-12">
                 <button
                   onClick={handleConnectFacebook}
-                  className="text-[13px] font-semibold text-accent-dark"
+                  disabled={connectingFb}
+                  className="text-[13px] font-semibold text-accent-dark disabled:opacity-50"
                 >
-                  Switch Page
+                  {connectingFb ? 'Connecting…' : 'Switch Page'}
                 </button>
                 <button
                   onClick={handleDisconnectFacebook}
-                  disabled={disconnecting}
+                  disabled={disconnecting || connectingFb}
                   className="text-[13px] font-semibold text-red-500 disabled:opacity-50"
                 >
                   {disconnecting ? 'Disconnecting…' : 'Disconnect'}
@@ -272,6 +288,7 @@ export function SettingsScreen() {
               label="Facebook & Messenger"
               description={fbError ?? fbDescription}
               onClick={handleConnectFacebook}
+              disabled={connectingFb}
             />
           )}
         </div>
@@ -439,7 +456,7 @@ function SettingsRow({
   }
 
   return (
-    <button className="w-full text-left" onClick={onClick}>
+    <button className="w-full text-left" onClick={onClick} disabled={disabled}>
       {inner}
     </button>
   );
