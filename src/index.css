@@ -11,7 +11,12 @@ body,
 }
 
 body {
-  @apply bg-[#FAFAF8] text-gray-900 antialiased;
+  /* Was bg-[#FAFAF8]/text-gray-900 — a cool near-white with a generic
+     Tailwind gray fallback, unrelated to the platinum/accent-dark
+     tokens. Moved to the actual cream from the bear-icon palette and
+     the new warm ink, so the page background and default text match
+     the rest of the app instead of sitting slightly off from it. */
+  @apply bg-[#FAF3EA] text-accent-dark antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 

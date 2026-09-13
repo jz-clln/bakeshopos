@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check } from 'lucide-react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   fetchConversationDetail,
@@ -15,6 +15,7 @@ import {
   type MessageRow,
 } from '../api/messages';
 import { uploadMessageAttachment } from '../api/attachments';
+import { updateCustomerName } from '../api/customers';
 import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
 import { EmojiPicker } from '../components/messages/EmojiPicker';
@@ -27,6 +28,12 @@ const EASE = [0.23, 1, 0.32, 1] as const;
 // visually grouped — tighter spacing, timestamp shown once at the end
 // of the cluster instead of on every bubble.
 const GROUP_WINDOW_MS = 3 * 60 * 1000;
+
+// Written by the Messenger webhook when a private profile or a failed
+// profile fetch means there's no real name to store. Used here to
+// decide whether to show it as-is or fall back to "Customer" — kept
+// as an exact string match against supabase/functions/facebook-messenger-webhook.
+const PLACEHOLDER_CUSTOMER_NAME = 'Facebook customer';
 
 function isSameDay(isoA: string, isoB: string): boolean {
   const a = new Date(isoA);
@@ -71,6 +78,13 @@ export function ConversationDetailScreen() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [switchingHandler, setSwitchingHandler] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+
+  // Renaming the customer inline from the header — mainly for private
+  // Facebook profiles that only ever gave us the placeholder name.
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   // Selected image staged for sending, plus a local preview URL —
   // separate from the uploaded state, since the file isn't uploaded
@@ -187,6 +201,41 @@ export function ConversationDetailScreen() {
     }
   }
 
+  function handleStartEditName() {
+    if (!conversation) return;
+    setNameError(null);
+    setNameDraft(
+      conversation.customer_name && conversation.customer_name !== PLACEHOLDER_CUSTOMER_NAME
+        ? conversation.customer_name
+        : ''
+    );
+    setEditingName(true);
+  }
+
+  function handleCancelEditName() {
+    setEditingName(false);
+    setNameError(null);
+  }
+
+  async function handleSaveName() {
+    if (!conversation) return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+
+    setSavingName(true);
+    setNameError(null);
+    try {
+      await updateCustomerName(conversation.customer_id, trimmed);
+      setConversation((prev) => (prev ? { ...prev, customer_name: trimmed } : prev));
+      setEditingName(false);
+    } catch (err) {
+      console.error('Failed to update customer name:', err);
+      setNameError(err instanceof Error ? err.message : 'Could not save name.');
+    } finally {
+      setSavingName(false);
+    }
+  }
+
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -252,7 +301,12 @@ export function ConversationDetailScreen() {
   const canSend = (draft.trim().length > 0 || !!pendingImage) && !sending;
 
   const hasAvatar = !!conversation?.customer_avatar_url && !avatarFailed;
-  const headerName = loading ? 'Loading…' : hasAvatar ? conversation?.customer_name : 'Customer';
+  // Decoupled from hasAvatar on purpose: a private-profile customer
+  // has no photo, but may still have a real name (either fetched
+  // successfully at creation, or set manually via the rename control
+  // below) — the header should show that name regardless of photo.
+  const hasRealName = !!conversation?.customer_name && conversation.customer_name !== PLACEHOLDER_CUSTOMER_NAME;
+  const headerName = loading ? 'Loading…' : hasRealName ? conversation!.customer_name : 'Customer';
   const preset = conversation ? getAvatarPreset(conversation.customer_id) : null;
 
   return (
@@ -279,19 +333,64 @@ export function ConversationDetailScreen() {
             <img
               src={hasAvatar ? conversation.customer_avatar_url! : preset?.src}
               alt=""
-              className="w-9 h-9 rounded-full object-cover bg-platinum shrink-0"
+              className="w-10 h-10 rounded-full object-cover bg-platinum shrink-0 ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
               onError={() => setAvatarFailed(true)}
             />
           )}
 
           <div className="min-w-0 flex-1">
-            <p className="font-display text-[19px] font-bold tracking-tight text-accent-dark truncate">
-              {headerName}
-            </p>
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-olive bg-platinum/70 px-1.5 py-0.5 rounded-full mt-0.5">
-              <ChannelIcon size={12} />
+            {editingName ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleSaveName(); }
+                    if (e.key === 'Escape') { e.preventDefault(); handleCancelEditName(); }
+                  }}
+                  placeholder="Customer's name"
+                  className="min-w-0 flex-1 font-display text-[19px] font-bold tracking-tight text-accent-dark bg-transparent border-b border-accent-dark/30 focus:outline-none focus:border-accent-dark"
+                />
+                <button
+                  onClick={handleSaveName}
+                  disabled={savingName || !nameDraft.trim()}
+                  aria-label="Save name"
+                  className="w-7 h-7 rounded-full bg-accent-dark text-white flex items-center justify-center shrink-0 transition-transform duration-150 active:scale-90 disabled:opacity-40"
+                >
+                  <Check size={13} strokeWidth={2.5} />
+                </button>
+                <button
+                  onClick={handleCancelEditName}
+                  aria-label="Cancel"
+                  className="w-7 h-7 rounded-full bg-platinum flex items-center justify-center shrink-0 text-olive transition-transform duration-150 active:scale-90"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 min-w-0">
+                <p className="font-display text-[19px] font-bold tracking-tight text-accent-dark truncate">
+                  {headerName}
+                </p>
+                {conversation && (
+                  <button
+                    onClick={handleStartEditName}
+                    aria-label="Edit customer name"
+                    className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-olive/50 hover:text-accent-dark hover:bg-platinum/50 transition-colors duration-150"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <span className="inline-flex items-center gap-1 text-[12px] font-medium text-olive/80 mt-0.5">
+              <ChannelIcon size={11} />
               Messenger
             </span>
+
+            {nameError && <p className="text-[11px] text-red-600 mt-0.5">{nameError}</p>}
           </div>
         </div>
       </motion.div>

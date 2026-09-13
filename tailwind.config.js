@@ -25,12 +25,18 @@ export default {
         ],
       },
       colors: {
-        platinum: '#E7ECEF',
-        olive: '#8B8C89',
+        // Palette sourced from the bear icon: ink from the nose/eyes,
+        // rose from the blush cheeks, olive(taupe) from the ear
+        // interiors, platinum(sand) from the fur shading. Same token
+        // names as before — every screen that already uses
+        // bg-platinum, text-olive, text-accent-dark, etc. picks this
+        // up automatically, no component changes needed.
+        platinum: '#ECE1D3',
+        olive: '#8A7566',
         accent: {
-          DEFAULT: '#6096BA',
-          dark: '#274C77',
-          light: '#A3CEF1',
+          DEFAULT: '#9A3F54', // deepened for AA text contrast on light backgrounds (5.9:1)
+          dark: '#2A2320',
+          light: '#F6D3D2',
         },
       },
       borderRadius: {
@@ -52,8 +58,12 @@ export default {
         slideInRight: 'slideInRight 0.35s ease-out',
       },
       boxShadow: {
-        card: '0 20px 40px -12px rgba(39,76,119,0.16)',
-        control: '0 10px 20px -8px rgba(39,76,119,0.28)',
+        // rgba values updated to match the new accent-dark (#2A2320 →
+        // rgb(42,35,32)) — these were hand-typed from the old navy
+        // accent-dark hex, so they'd have kept casting a blue tint
+        // under the new warm palette if left alone.
+        card: '0 20px 40px -12px rgba(42,35,32,0.16)',
+        control: '0 10px 20px -8px rgba(42,35,32,0.28)',
       },
     },
   },

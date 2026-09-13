@@ -15,6 +15,12 @@ import { getAvatarPreset } from '../lib/avatarPresets';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
+// Written by the Messenger webhook when a private profile or a failed
+// profile fetch means there's no real name to store. Kept as an exact
+// string match against supabase/functions/facebook-messenger-webhook —
+// same constant ConversationDetailScreen.tsx uses for its header.
+const PLACEHOLDER_CUSTOMER_NAME = 'Facebook customer';
+
 const fadeUp = {
   hidden: { opacity: 0, y: 10 },
   visible: (i: number) => ({
@@ -194,7 +200,12 @@ export function MessagesScreen() {
               >
                 {conversations.map((convo) => {
                   const hasAvatar = !!convo.customer_avatar_url;
-                  const displayName = hasAvatar ? convo.customer_name : 'Customer';
+                  // Decoupled from hasAvatar on purpose — a private-
+                  // profile customer has no photo, but may still have
+                  // a real name (fetched at creation, or set manually
+                  // via the rename control on the conversation screen).
+                  const hasRealName = !!convo.customer_name && convo.customer_name !== PLACEHOLDER_CUSTOMER_NAME;
+                  const displayName = hasRealName ? convo.customer_name : 'Customer';
                   const preset = getAvatarPreset(convo.customer_id);
 
                   return (

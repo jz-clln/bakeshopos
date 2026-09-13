@@ -47,6 +47,27 @@ export async function createCustomer(
   return data as Customer;
 }
 
+/**
+ * Renames a customer — mainly for Facebook conversations where a
+ * private profile or a failed profile fetch left the record with the
+ * placeholder name ("Facebook customer") instead of their real one.
+ * The owner can ask the customer directly in chat and set it here.
+ * Safe from being silently overwritten later: the Messenger webhook
+ * only ever sets full_name once, at the moment a customer record is
+ * first created, never on an existing row.
+ */
+export async function updateCustomerName(customerId: string, fullName: string): Promise<void> {
+  const trimmed = fullName.trim();
+  if (!trimmed) throw new Error('Name cannot be empty.');
+
+  const { error } = await supabase
+    .from('customers')
+    .update({ full_name: trimmed })
+    .eq('id', customerId);
+
+  if (error) throw error;
+}
+
 export class CustomerHasRecordsError extends Error {}
 
 /**

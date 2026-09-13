@@ -17,8 +17,8 @@ export function Sidebar({ navItems }: SidebarProps) {
       className="hidden md:flex md:w-64 md:flex-col md:shrink-0 bg-white border-r border-platinum/70"
     >
       {/* Brand */}
-      <div className="px-5 pt-8 pb-7">
-        <img src="/logo-horizontal.png" alt="KEKI" className="h-9 w-auto" />
+      <div className="px-5 pt-8 pb-7 flex justify-center">
+        <img src="/logo-horizontal.png" alt="KEKI" className="h-14 w-auto" />
       </div>
 
       {/* Nav */}
