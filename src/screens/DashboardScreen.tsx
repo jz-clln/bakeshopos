@@ -138,9 +138,66 @@ export function DashboardScreen() {
 
       const orders = (todayOrders ?? []) as OrderRow[];
 
-      const revenueToday = orders
-        .filter((o) => o.status !== 'cancelled')
-        .reduce((sum, o) => sum + (o.total_amount ?? 0), 0);
+      // Revenue is money actually received, not the value of orders
+      // sitting unpaid. Pulled from verified payments, filtered by
+      // WHEN THE PAYMENT WAS VERIFIED — not when the order was
+      // created — so an order made days ago that gets paid today
+      // correctly counts toward today's revenue, and an order made
+      // today that's still awaiting payment correctly does not.
+      const { data: todayPayments, error: paymentsError } = await supabase
+        .from('payments')
+        .select('amount_paid')
+        .eq('organization_id', organizationId)
+        .eq('status', 'verified')
+        .gte('verified_at', start)
+        .lte('verified_at', end);
+
+      if (paymentsError) {
+        console.error('Failed to load today\'s payments:', paymentsError);
+      }
+
+      // Refunds reduce today's revenue by however much was actually
+      // paid on the refunded order — not its total_amount, since only
+      // a deposit might have been paid. There's no dedicated refund
+      // timestamp/amount yet, so this uses orders.updated_at (bumped
+      // by the status-transition trigger) as the refund date, and
+      // sums that order's own verified payments as the refunded
+      // amount. A refund only affects the day it happened, not the
+      // day the original order was placed.
+      const { data: refundedOrdersToday, error: refundsError } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('status', 'refunded')
+        .gte('updated_at', start)
+        .lte('updated_at', end);
+
+      if (refundsError) {
+        console.error('Failed to load today\'s refunds:', refundsError);
+      }
+
+      let refundedAmountToday = 0;
+      if (refundedOrdersToday && refundedOrdersToday.length > 0) {
+        const refundedOrderIds = refundedOrdersToday.map((o) => o.id);
+        const { data: refundedPayments, error: refundedPaymentsError } = await supabase
+          .from('payments')
+          .select('amount_paid')
+          .in('order_id', refundedOrderIds)
+          .eq('status', 'verified');
+
+        if (refundedPaymentsError) {
+          console.error('Failed to load payments for refunded orders:', refundedPaymentsError);
+        } else {
+          refundedAmountToday = (refundedPayments ?? []).reduce(
+            (sum, p) => sum + (p.amount_paid ?? 0),
+            0
+          );
+        }
+      }
+
+      const revenueToday =
+        (todayPayments ?? []).reduce((sum, p) => sum + (p.amount_paid ?? 0), 0) -
+        refundedAmountToday;
 
       const pendingPickups = orders.filter((o) => o.status === 'ready').length;
       const completedOrders = orders.filter((o) => o.status === 'completed').length;
