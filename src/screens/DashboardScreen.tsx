@@ -121,11 +121,20 @@ export function DashboardScreen() {
   const greeting =
     hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
+  // Stats and the recent-orders list both derive from order_list_view
+  // (a VIEW, so it has no realtime feed of its own) plus payments and
+  // refunded orders. To keep this live, we don't subscribe to the
+  // view — we subscribe to the underlying `orders` and `payments`
+  // tables (both org-scoped) and, on any change, quietly re-run the
+  // same read this effect already does on mount. showLoading is only
+  // true for that first load, so a live update never re-triggers the
+  // skeleton — the numbers just settle into place.
   useEffect(() => {
     if (!organizationId) return;
 
-    async function load() {
-      setLoading(true);
+    let cancelled = false;
+
+    async function loadDashboardData(): Promise<{ stats: DashboardStats; recentOrders: OrderRow[] }> {
       const { start, end } = todayRange();
 
       const { data: todayOrders } = await supabase
@@ -202,19 +211,58 @@ export function DashboardScreen() {
       const pendingPickups = orders.filter((o) => o.status === 'ready').length;
       const completedOrders = orders.filter((o) => o.status === 'completed').length;
 
-      setStats({
-        totalOrders: orders.length,
-        revenueToday,
-        pendingPickups,
-        unreadMessages: 0,
-        completedOrders,
-      });
-
-      setRecentOrders(orders.slice(0, 4));
-      setLoading(false);
+      return {
+        stats: {
+          totalOrders: orders.length,
+          revenueToday,
+          pendingPickups,
+          unreadMessages: 0,
+          completedOrders,
+        },
+        recentOrders: orders.slice(0, 4),
+      };
     }
 
-    load();
+    async function refresh(showLoading: boolean) {
+      if (showLoading) setLoading(true);
+      const result = await loadDashboardData();
+      if (cancelled) return;
+      setStats(result.stats);
+      setRecentOrders(result.recentOrders);
+      if (showLoading) setLoading(false);
+    }
+
+    refresh(true);
+
+    // A single action (draft_order inserting a row, a payment being
+    // verified) can fire more than one row event in quick succession.
+    // Debouncing means we land once on the final, settled state
+    // instead of refetching once per event.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    function scheduleRefresh() {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => refresh(false), 400);
+    }
+
+    const channel = supabase
+      .channel(`dashboard-${organizationId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `organization_id=eq.${organizationId}` },
+        scheduleRefresh
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments', filter: `organization_id=eq.${organizationId}` },
+        scheduleRefresh
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [organizationId]);
 
   useEffect(() => {
@@ -417,9 +465,17 @@ export function DashboardScreen() {
         className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
       >
         <div className="flex items-center justify-between px-5 md:px-6 pt-5 md:pt-4 pb-3 md:pb-2">
-          <h2 className="font-display text-base font-semibold text-accent-dark tracking-tight">
-            Recent orders
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-base font-semibold text-accent-dark tracking-tight">
+              Recent orders
+            </h2>
+            {/* Same pulsing-dot language as the accepting-orders card
+                above, here just signaling that this list updates live. */}
+            <span className="relative flex w-1.5 h-1.5" title="Live">
+              <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-green-400 opacity-60" />
+              <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-green-500" />
+            </span>
+          </div>
           <Link
             to="/orders"
             className="inline-flex items-center gap-0.5 text-sm font-semibold text-accent py-2.5 -my-2.5 transition-opacity duration-150 hover:opacity-70"

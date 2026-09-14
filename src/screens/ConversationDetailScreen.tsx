@@ -396,8 +396,8 @@ export function ConversationDetailScreen() {
         className="shrink-0 border-b border-black/[0.04] bg-white/80 backdrop-blur-xl"
       >
         <div
-          className="flex items-center gap-3 px-5 md:px-10 max-w-5xl mx-auto w-full"
-          style={{ paddingTop: 'max(env(safe-area-inset-top), 24px)', paddingBottom: '16px' }}
+          className="flex items-center gap-4 px-5 md:px-10 max-w-5xl mx-auto w-full"
+          style={{ paddingTop: 'max(env(safe-area-inset-top), 28px)', paddingBottom: '20px' }}
         >
           <button
             onClick={() => navigate('/messages')}
@@ -411,7 +411,7 @@ export function ConversationDetailScreen() {
             <img
               src={hasAvatar ? conversation.customer_avatar_url! : preset?.src}
               alt=""
-              className="w-10 h-10 rounded-full object-cover bg-platinum shrink-0 ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
+              className="w-11 h-11 rounded-full object-cover bg-platinum shrink-0 ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
               onError={() => setAvatarFailed(true)}
             />
           )}
@@ -463,12 +463,12 @@ export function ConversationDetailScreen() {
               </div>
             )}
 
-            <span className="inline-flex items-center gap-1 text-[12px] font-medium text-olive/80 mt-0.5">
+            <span className="inline-flex items-center gap-1 text-[12px] font-medium text-olive/80 mt-1">
               <ChannelIcon size={11} />
               Messenger
             </span>
 
-            {nameError && <p className="text-[11px] text-red-600 mt-0.5">{nameError}</p>}
+            {nameError && <p className="text-[11px] text-red-600 mt-1">{nameError}</p>}
           </div>
         </div>
       </motion.div>
@@ -582,7 +582,7 @@ export function ConversationDetailScreen() {
               <p className="text-sm text-olive">No messages yet.</p>
             </div>
           ) : (
-            <div className="pt-4 pb-4">
+            <div className="pt-3 pb-4">
               {messages.map((msg, i) => {
                 const prev = messages[i - 1];
                 const next = messages[i + 1];
@@ -608,8 +608,8 @@ export function ConversationDetailScreen() {
                 return (
                   <div key={msg.id}>
                     {showDateDivider && (
-                      <div className="flex items-center justify-center py-3 first:pt-0">
-                        <span className="text-[11px] font-medium text-olive bg-white/80 px-3 py-1 rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+                      <div className="flex items-center justify-center py-5 first:pt-2">
+                        <span className="text-[11px] font-semibold text-olive bg-white/90 px-3.5 py-1.5 rounded-full shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
                           {formatDateDivider(msg.created_at)}
                         </span>
                       </div>
