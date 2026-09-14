@@ -33,8 +33,9 @@ import { getAvatarPreset } from '../lib/avatarPresets';
 const EASE = [0.23, 1, 0.32, 1] as const;
 
 // Consecutive messages from the same sender within this window are
-// visually grouped — tighter spacing, timestamp shown once at the end
-// of the cluster instead of on every bubble.
+// visually grouped — tighter spacing, timestamp (and, for the
+// customer, their avatar) shown once at the end of the cluster
+// instead of on every bubble.
 const GROUP_WINDOW_MS = 3 * 60 * 1000;
 
 // Written by the Messenger webhook when a private profile or a failed
@@ -386,34 +387,51 @@ export function ConversationDetailScreen() {
   const hasRealName = !!conversation?.customer_name && conversation.customer_name !== PLACEHOLDER_CUSTOMER_NAME;
   const headerName = loading ? 'Loading…' : hasRealName ? conversation!.customer_name : 'Customer';
   const preset = conversation ? getAvatarPreset(conversation.customer_id) : null;
+  const customerAvatarSrc = hasAvatar ? conversation?.customer_avatar_url ?? undefined : preset?.src;
 
   return (
     <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-platinum/30">
-      {/* Header */}
+      {/* Header — thin and translucent, with fixed left padding
+          instead of a centered max-width wrapper. That's deliberate:
+          a centered wrapper's side margins grow with the window (or
+          with browser zoom, which changes how much CSS-pixel width is
+          available), so the back button and name would visibly drift
+          away from the sidebar edge. Fixed padding means this block
+          sits at the same offset from the sidebar no matter the
+          window size or zoom level. */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.26, ease: EASE }}
-        className="shrink-0 border-b border-black/[0.04] bg-white/80 backdrop-blur-xl"
+        initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.22, ease: EASE }}
+        className="shrink-0 border-b border-black/[0.05] bg-white/85 backdrop-blur-xl"
       >
         <div
-          className="flex items-center gap-4 px-5 md:px-10 max-w-5xl mx-auto w-full"
-          style={{ paddingTop: 'max(env(safe-area-inset-top), 28px)', paddingBottom: '20px' }}
+          className="flex items-center gap-3 px-5 md:px-6 w-full"
+          style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)', paddingBottom: '12px' }}
         >
+          {/* Visually minimal — no fill, no shadow, just the chevron —
+              but the tap target is still a full 44x44px via padding,
+              so it stays comfortable to hit on a phone even though it
+              doesn't look like a big button. */}
           <button
             onClick={() => navigate('/messages')}
-            className="w-11 h-11 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] flex items-center justify-center transition-transform duration-150 active:scale-90 shrink-0"
             aria-label="Back to Messages"
+            className="w-11 h-11 -ml-2 rounded-full flex items-center justify-center shrink-0 text-olive hover:text-accent-dark hover:bg-platinum/50 transition-colors duration-150 active:scale-90"
           >
-            <ArrowLeft size={17} className="text-olive" />
+            <ArrowLeft size={16} strokeWidth={2.25} />
           </button>
 
           {!loading && conversation && (
-            <img
-              src={hasAvatar ? conversation.customer_avatar_url! : preset?.src}
-              alt=""
-              className="w-11 h-11 rounded-full object-cover bg-platinum shrink-0 ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
-              onError={() => setAvatarFailed(true)}
-            />
+            <div className="relative shrink-0">
+              <img
+                src={customerAvatarSrc}
+                alt=""
+                className="w-9 h-9 rounded-full object-cover bg-platinum ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
+                onError={() => setAvatarFailed(true)}
+              />
+              {/* Small channel-color dot — the one deliberate flourish
+                  in an otherwise quiet header. */}
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0084FF] ring-2 ring-white" />
+            </div>
           )}
 
           <div className="min-w-0 flex-1">
@@ -428,7 +446,7 @@ export function ConversationDetailScreen() {
                     if (e.key === 'Escape') { e.preventDefault(); handleCancelEditName(); }
                   }}
                   placeholder="Customer's name"
-                  className="min-w-0 flex-1 font-display text-[19px] font-bold tracking-tight text-accent-dark bg-transparent border-b border-accent-dark/30 focus:outline-none focus:border-accent-dark"
+                  className="min-w-0 flex-1 font-display text-[17px] font-bold tracking-tight text-accent-dark bg-transparent border-b border-accent-dark/30 focus:outline-none focus:border-accent-dark"
                 />
                 <button
                   onClick={handleSaveName}
@@ -448,7 +466,7 @@ export function ConversationDetailScreen() {
               </div>
             ) : (
               <div className="flex items-center gap-1 min-w-0">
-                <p className="font-display text-[19px] font-bold tracking-tight text-accent-dark truncate">
+                <p className="font-display text-[17px] font-bold tracking-tight text-accent-dark truncate leading-tight">
                   {headerName}
                 </p>
                 {conversation && (
@@ -463,12 +481,12 @@ export function ConversationDetailScreen() {
               </div>
             )}
 
-            <span className="inline-flex items-center gap-1 text-[12px] font-medium text-olive/80 mt-1">
-              <ChannelIcon size={11} />
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-olive/70 mt-0.5">
+              <ChannelIcon size={10} />
               Messenger
             </span>
 
-            {nameError && <p className="text-[11px] text-red-600 mt-1">{nameError}</p>}
+            {nameError && <p className="text-[11px] text-red-600 mt-0.5">{nameError}</p>}
           </div>
         </div>
       </motion.div>
@@ -477,7 +495,7 @@ export function ConversationDetailScreen() {
       {!loading && conversation && showLetAiHandle && (
         <motion.div
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 px-5 md:px-10 pt-3 max-w-5xl mx-auto w-full"
+          className="shrink-0 px-5 md:px-6 pt-3 w-full"
         >
           <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-[14px] ${
             conversation.handler === 'handoff_required' ? 'bg-amber-50' : 'bg-platinum'
@@ -511,7 +529,7 @@ export function ConversationDetailScreen() {
       {!loading && pendingOrder && (
         <motion.div
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 px-5 md:px-10 pt-3 max-w-5xl mx-auto w-full"
+          className="shrink-0 px-5 md:px-6 pt-3 w-full"
         >
           <div className="rounded-[14px] bg-amber-50 border border-amber-200/70 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
@@ -563,121 +581,142 @@ export function ConversationDetailScreen() {
         </motion.div>
       )}
 
-      {/* Message list */}
+      {/* Message list — no centered max-width wrapper here either, so
+          the thread always fills the space next to the sidebar with
+          just its own padding, instead of leaving a growing empty
+          gutter on a wide window or at low zoom. Each bubble still
+          caps its own width (see max-w-[min(75%,560px)] below) so
+          lines don't stretch unreadably long on an ultra-wide screen —
+          that cap lives on the bubble, not on the container, so it
+          never reintroduces side gutters. */}
       <div
-        className="flex-1 overflow-y-auto min-h-0 px-5 md:px-10"
+        className="flex-1 overflow-y-auto min-h-0 px-5 md:px-6"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <div className="max-w-5xl mx-auto w-full">
-          {loading ? (
-            <div className="space-y-3 pt-4">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-                  <div className="h-10 w-2/3 rounded-[16px] bg-white animate-pulse shadow-[0_1px_4px_rgba(0,0,0,0.06)]" />
-                </div>
-              ))}
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="py-16 flex flex-col items-center gap-2">
-              <p className="text-sm text-olive">No messages yet.</p>
-            </div>
-          ) : (
-            <div className="pt-3 pb-4">
-              {messages.map((msg, i) => {
-                const prev = messages[i - 1];
-                const next = messages[i + 1];
-                const isCustomer = msg.sender_type === 'customer';
-                const notDelivered = msg.delivery_status !== 'sent' && !isCustomer;
+        {loading ? (
+          <div className="space-y-3 pt-4">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+                <div className="h-10 w-2/3 rounded-[16px] bg-white animate-pulse shadow-[0_1px_4px_rgba(0,0,0,0.06)]" />
+              </div>
+            ))}
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="py-16 flex flex-col items-center gap-2">
+            <p className="text-sm text-olive">No messages yet.</p>
+          </div>
+        ) : (
+          <div className="pt-3 pb-4">
+            {messages.map((msg, i) => {
+              const prev = messages[i - 1];
+              const next = messages[i + 1];
+              const isCustomer = msg.sender_type === 'customer';
+              const notDelivered = msg.delivery_status !== 'sent' && !isCustomer;
 
-                const showDateDivider = !prev || !isSameDay(msg.created_at, prev.created_at);
+              const showDateDivider = !prev || !isSameDay(msg.created_at, prev.created_at);
 
-                const groupedWithPrev =
-                  !!prev &&
-                  !showDateDivider &&
-                  prev.sender_type === msg.sender_type &&
-                  new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_WINDOW_MS;
+              const groupedWithPrev =
+                !!prev &&
+                !showDateDivider &&
+                prev.sender_type === msg.sender_type &&
+                new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_WINDOW_MS;
 
-                const groupedWithNext =
-                  !!next &&
-                  isSameDay(msg.created_at, next.created_at) &&
-                  next.sender_type === msg.sender_type &&
-                  new Date(next.created_at).getTime() - new Date(msg.created_at).getTime() < GROUP_WINDOW_MS;
+              const groupedWithNext =
+                !!next &&
+                isSameDay(msg.created_at, next.created_at) &&
+                next.sender_type === msg.sender_type &&
+                new Date(next.created_at).getTime() - new Date(msg.created_at).getTime() < GROUP_WINDOW_MS;
 
-                const showTimestamp = !groupedWithNext;
+              const showTimestamp = !groupedWithNext;
 
-                return (
-                  <div key={msg.id}>
-                    {showDateDivider && (
-                      <div className="flex items-center justify-center py-5 first:pt-2">
-                        <span className="text-[11px] font-semibold text-olive bg-white/90 px-3.5 py-1.5 rounded-full shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
-                          {formatDateDivider(msg.created_at)}
-                        </span>
-                      </div>
-                    )}
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, ease: EASE }}
-                      className={`flex ${isCustomer ? 'justify-start' : 'justify-end'} ${
-                        groupedWithPrev ? 'mt-1' : 'mt-3'
-                      }`}
-                    >
-                      <div className={`max-w-[75%] rounded-[18px] overflow-hidden ${
-                        msg.media_url ? 'p-1.5' : 'px-4 py-2.5'
-                      } ${
-                        isCustomer
-                          ? 'bg-white text-accent-dark shadow-[0_1px_4px_rgba(0,0,0,0.06)] rounded-bl-[4px]'
-                          : notDelivered
-                          ? 'bg-platinum text-accent-dark rounded-br-[4px] border border-dashed border-olive/40'
-                          : 'bg-accent-dark text-white rounded-br-[4px]'
-                      }`}>
-                        {msg.media_url && (
+              return (
+                <div key={msg.id}>
+                  {showDateDivider && (
+                    <div className="flex items-center justify-center py-5 first:pt-2">
+                      <span className="text-[11px] font-semibold text-olive bg-white/90 px-3.5 py-1.5 rounded-full shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
+                        {formatDateDivider(msg.created_at)}
+                      </span>
+                    </div>
+                  )}
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, ease: EASE }}
+                    className={`flex items-end gap-2 ${isCustomer ? 'justify-start' : 'justify-end'} ${
+                      groupedWithPrev ? 'mt-1' : 'mt-3'
+                    }`}
+                  >
+                    {/* Customer's photo rides beside their bubble, like
+                        a real two-person thread — shown once at the
+                        bottom of each cluster, with an equal-width
+                        empty slot on the other rows in that cluster so
+                        bubbles stay aligned either way. */}
+                    {isCustomer && (
+                      <div className="w-6 h-6 shrink-0">
+                        {showTimestamp && (
                           <img
-                            src={msg.media_url}
-                            alt="Attachment"
-                            className="rounded-[13px] max-w-full max-h-[280px] object-cover"
+                            src={customerAvatarSrc}
+                            alt=""
+                            className="w-6 h-6 rounded-full object-cover bg-platinum ring-1 ring-black/[0.05]"
                           />
                         )}
-                        {msg.body && (
-                          <p className={`text-[14px] leading-relaxed whitespace-pre-wrap ${msg.media_url ? 'px-2.5 pt-2' : ''}`}>
-                            {msg.body}
-                          </p>
-                        )}
-                        {showTimestamp && (
-                          <div className={`flex items-center gap-1.5 mt-1 ${msg.media_url ? 'px-2.5 pb-1' : ''} ${isCustomer ? 'justify-start' : 'justify-end'}`}>
-                            {!isCustomer && (
-                              <span className={`text-[10px] font-semibold uppercase tracking-wide ${notDelivered ? 'text-olive' : 'opacity-70'}`}>
-                                {msg.sender_type === 'ai' ? 'AI' : 'You'}
-                              </span>
-                            )}
-                            <span className={`text-[11px] ${isCustomer ? 'text-olive' : notDelivered ? 'text-olive' : 'text-white/60'}`}>
-                              {formatTime(msg.created_at)}
-                            </span>
-                          </div>
-                        )}
-                        {notDelivered && (
-                          <p className={`text-[11px] text-amber-700 ${msg.media_url ? 'px-2.5 pb-1.5' : 'mt-1'}`}>
-                            {msg.delivery_status === 'blocked_window'
-                              ? 'Not delivered — outside the 24-hour messaging window'
-                              : 'Not delivered — sending failed'}
-                          </p>
-                        )}
                       </div>
-                    </motion.div>
-                  </div>
-                );
-              })}
-              <div ref={bottomRef} />
-            </div>
-          )}
-        </div>
+                    )}
+                    <div className={`max-w-[min(75%,560px)] rounded-[18px] overflow-hidden transition-shadow duration-150 ${
+                      msg.media_url ? 'p-1.5' : 'px-4 py-2.5'
+                    } ${
+                      isCustomer
+                        ? 'bg-white text-accent-dark shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_10px_rgba(0,0,0,0.09)] rounded-bl-[4px]'
+                        : notDelivered
+                        ? 'bg-platinum text-accent-dark rounded-br-[4px] border border-dashed border-olive/40'
+                        : 'bg-accent-dark text-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.16)] rounded-br-[4px]'
+                    }`}>
+                      {msg.media_url && (
+                        <img
+                          src={msg.media_url}
+                          alt="Attachment"
+                          className="rounded-[13px] max-w-full max-h-[280px] object-cover"
+                        />
+                      )}
+                      {msg.body && (
+                        <p className={`text-[14px] leading-relaxed whitespace-pre-wrap ${msg.media_url ? 'px-2.5 pt-2' : ''}`}>
+                          {msg.body}
+                        </p>
+                      )}
+                      {showTimestamp && (
+                        <div className={`flex items-center gap-1.5 mt-1 ${msg.media_url ? 'px-2.5 pb-1' : ''} ${isCustomer ? 'justify-start' : 'justify-end'}`}>
+                          {!isCustomer && (
+                            <span className={`text-[10px] font-semibold uppercase tracking-wide ${notDelivered ? 'text-olive' : 'opacity-70'}`}>
+                              {msg.sender_type === 'ai' ? 'AI' : 'You'}
+                            </span>
+                          )}
+                          <span className={`text-[11px] ${isCustomer ? 'text-olive' : notDelivered ? 'text-olive' : 'text-white/60'}`}>
+                            {formatTime(msg.created_at)}
+                          </span>
+                        </div>
+                      )}
+                      {notDelivered && (
+                        <p className={`text-[11px] text-amber-700 ${msg.media_url ? 'px-2.5 pb-1.5' : 'mt-1'}`}>
+                          {msg.delivery_status === 'blocked_window'
+                            ? 'Not delivered — outside the 24-hour messaging window'
+                            : 'Not delivered — sending failed'}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                </div>
+              );
+            })}
+            <div ref={bottomRef} />
+          </div>
+        )}
       </div>
 
       {/* Compose bar */}
       <div
-        className="shrink-0 border-t border-black/[0.04] bg-white/80 backdrop-blur-xl px-5 md:px-10 pt-3"
+        className="shrink-0 border-t border-black/[0.04] bg-white/80 backdrop-blur-xl px-5 md:px-6 pt-3"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
       >
-        <div className="max-w-5xl mx-auto w-full">
+        <div className="w-full">
           {sendError && (
             <p className="text-[12px] text-red-600 mb-1.5 px-1">{sendError}</p>
           )}
