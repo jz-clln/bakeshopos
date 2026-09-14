@@ -498,13 +498,15 @@ export function ConversationDetailScreen() {
           className="shrink-0 px-5 md:px-6 pt-3 w-full"
         >
           <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-[14px] ${
-            conversation.handler === 'handoff_required' ? 'bg-amber-50' : 'bg-platinum'
+            conversation.handler === 'handoff_required'
+              ? 'bg-amber-50'
+              : 'bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]'
           }`}>
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               {conversation.handler === 'handoff_required' && (
                 <AlertTriangle size={15} className="text-amber-600 shrink-0" />
               )}
-              <p className="text-[13px] font-medium text-accent-dark truncate">
+              <p className="text-[12px] font-medium text-accent-dark leading-snug">
                 {conversation.handler === 'handoff_required'
                   ? 'AI needs help with this conversation'
                   : conversation.handler === 'paused'
@@ -515,7 +517,7 @@ export function ConversationDetailScreen() {
             <button
               onClick={handleLetAiHandle}
               disabled={switchingHandler}
-              className="shrink-0 inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1.5 rounded-full bg-accent-dark text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
+              className="shrink-0 self-center inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1.5 rounded-full bg-accent-dark text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
             >
               <Bot size={13} />
               {switchingHandler ? 'Switching…' : 'Let AI handle this'}
