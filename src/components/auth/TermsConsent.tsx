@@ -1,7 +1,5 @@
 // File: app/src/components/auth/TermsConsent.tsx
 
-import { Link } from 'react-router-dom';
-
 interface TermsConsentProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -18,13 +16,13 @@ export function TermsConsent({ checked, onChange }: TermsConsentProps) {
       />
       <span className="text-[13px] text-olive leading-relaxed">
         I agree to the{' '}
-        <Link to="/terms" className="text-accent-dark font-semibold underline">
+        <span className="font-semibold underline" style={{ color: '#2A2320' }}>
           Terms and Conditions
-        </Link>{' '}
+        </span>{' '}
         and{' '}
-        <Link to="/privacy" className="text-accent-dark font-semibold underline">
+        <span className="font-semibold underline" style={{ color: '#2A2320' }}>
           Privacy Policy
-        </Link>
+        </span>
         .
       </span>
     </label>
