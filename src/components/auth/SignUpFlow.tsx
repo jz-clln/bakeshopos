@@ -20,6 +20,16 @@ interface SignUpFlowProps {
 type Step = 1 | 2 | 3;
 const TOTAL_STEPS = 3;
 
+// A lightweight shape check, not full RFC 5322 validation — that's
+// intentionally overkill for a signup form. Real deliverability is
+// already verified downstream by Supabase's confirmation email; this
+// just catches obvious non-emails before they get that far. There's
+// no <form> element wrapping these steps, so the input's
+// type="email" never gets a chance to trigger the browser's own
+// format validation (that only fires on an actual form submission) —
+// "Continue" is a plain onClick, so this check has to happen here.
+const EMAIL_SHAPE_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function SignUpFlow({ onSwitchToSignIn }: SignUpFlowProps) {
   const [step, setStep] = useState<Step>(1);
   const [shopName, setShopName] = useState('');
@@ -37,9 +47,16 @@ export function SignUpFlow({ onSwitchToSignIn }: SignUpFlowProps) {
       setError('Enter your shop name to continue.');
       return;
     }
-    if (step === 2 && !email.trim()) {
-      setError('Enter your email to continue.');
-      return;
+    if (step === 2) {
+      const trimmedEmail = email.trim();
+      if (!trimmedEmail) {
+        setError('Enter your email to continue.');
+        return;
+      }
+      if (!EMAIL_SHAPE_REGEX.test(trimmedEmail)) {
+        setError('Enter a valid email address.');
+        return;
+      }
     }
     setStep((s) => (s + 1) as Step);
   }
