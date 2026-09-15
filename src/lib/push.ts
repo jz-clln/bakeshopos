@@ -39,6 +39,15 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 
 export async function getExistingSubscription(): Promise<PushSubscription | null> {
   if (!isPushSupported()) return null;
+
+  // Registering here (not just inside subscribeToPush) is what fixes
+  // this — navigator.serviceWorker.ready hangs forever if no service
+  // worker has EVER been registered yet, which is exactly the state
+  // of a fresh page load before anyone has clicked "enable." register()
+  // is idempotent: if one's already active, this just returns it
+  // immediately instead of registering a duplicate.
+  await registerServiceWorker();
+
   const registration = await navigator.serviceWorker.ready;
   return registration.pushManager.getSubscription();
 }
