@@ -286,6 +286,9 @@ function StepPassword({
         {submitting && <Loader2 size={18} className="animate-spin" />}
         {submitting ? 'Creating your shop…' : 'Create Shop'}
       </button>
+      <p className="text-center text-[12px] text-olive/80 leading-relaxed">
+        By signing up you agree to our Terms of Service and Privacy Policy.
+      </p>
     </div>
   );
 }
