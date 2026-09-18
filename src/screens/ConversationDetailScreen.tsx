@@ -537,7 +537,7 @@ export function ConversationDetailScreen() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark">
-                  <Receipt size={13} className="text-amber-600 shrink-0" />
+                  <Receipt size={13} className="text-green-600 shrink-0" />
                   New order awaiting your confirmation
                 </p>
                 <p className="text-[12px] text-olive truncate mt-0.5">{pendingOrder.item_summary}</p>

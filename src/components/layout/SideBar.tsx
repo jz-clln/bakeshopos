@@ -21,39 +21,59 @@ export function Sidebar({ navItems }: SidebarProps) {
         <img src="/logo-horizontal.png" alt="KEKI" className="h-14 w-auto" />
       </div>
 
+      <div className="mx-5 border-b border-platinum/40" />
+
       {/* Nav */}
-      <nav className="flex-1 px-3 space-y-0.5">
+      <nav className="flex-1 px-3 pt-4 pb-6 space-y-0.5">
         {navItems.map(({ to, label, icon: Icon, end, badge }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
-            className={({ isActive }) =>
-              `group relative flex items-center gap-3 rounded-[12px] px-3 py-2.5 font-medium text-[15px] transition-colors duration-150 ${
-                isActive
-                  ? 'bg-accent-dark/[0.07] text-accent-dark'
-                  : 'text-olive hover:bg-platinum/50 hover:text-accent-dark'
-              }`
-            }
+            className="group relative flex items-center gap-3 rounded-[12px] px-3 py-2.5 font-medium text-[15px] text-olive hover:text-accent-dark transition-colors duration-150"
           >
             {({ isActive }) => (
               <>
-                <Icon
-                  size={19}
-                  strokeWidth={isActive ? 2.2 : 1.75}
-                  className="shrink-0 transition-colors duration-150"
-                />
-                <span className="flex-1 truncate">{label}</span>
+                {/* Animated pill — same layoutId-driven spring pattern
+                    as TabBar's active indicator, so switching pages
+                    reads as one continuous, connected motion instead
+                    of a hard state swap. */}
+                {isActive && (
+                  <motion.span
+                    layoutId="sidebar-active-pill"
+                    className="absolute inset-0 rounded-[12px] bg-accent-dark/[0.07]"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+
+                <motion.span
+                  whileHover={!isActive ? { x: 2 } : undefined}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  className={`relative z-10 flex items-center gap-3 flex-1 min-w-0 ${
+                    isActive ? 'text-accent-dark' : ''
+                  }`}
+                >
+                  <Icon
+                    size={19}
+                    strokeWidth={isActive ? 2.2 : 1.75}
+                    className="shrink-0 transition-colors duration-150"
+                  />
+                  <span className="flex-1 truncate">{label}</span>
+                </motion.span>
+
                 {!!badge && (
-                  <span
-                    className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular-nums ${
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    className={`relative z-10 text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular-nums ${
                       isActive
                         ? 'bg-accent-dark/10 text-accent-dark'
                         : 'bg-accent-dark text-white'
                     }`}
                   >
                     {badge}
-                  </span>
+                  </motion.span>
                 )}
               </>
             )}

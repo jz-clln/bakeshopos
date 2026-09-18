@@ -7,6 +7,7 @@
 //   not a hardcoded value in NAV_ITEMS)
 // - 44px minimum touch targets
 // - Safe-area aware bottom padding
+// - Icon presses down slightly on tap for tactile feedback
 
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -35,7 +36,11 @@ export function TabBar({ navItems }: TabBarProps) {
               end={end}
               className="flex-1 flex flex-col items-center pt-2 pb-1 min-h-[48px] relative"
             >
-              <div className="relative flex items-center justify-center w-12 h-8">
+              <motion.div
+                whileTap={{ scale: 0.88 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                className="relative flex items-center justify-center w-12 h-8"
+              >
                 {/* Spring pill behind active icon */}
                 {isActive && (
                   <motion.div
@@ -62,7 +67,7 @@ export function TabBar({ navItems }: TabBarProps) {
                     className="absolute top-0.5 right-0.5 w-[7px] h-[7px] rounded-full bg-accent-dark z-20"
                   />
                 )}
-              </div>
+              </motion.div>
 
               <span
                 className={`text-[10px] mt-0.5 font-medium transition-colors duration-200 ${
