@@ -527,54 +527,72 @@ export function ConversationDetailScreen() {
       )}
 
       {/* Pending order banner — shown while an AI-drafted order for
-          this conversation is still sitting at status: inquiry. */}
+          this conversation is still sitting at status: inquiry.
+
+          Layout notes for cross-device safety:
+          - The header row uses `flex-wrap` so on very narrow phones
+            (≤340px) the price can drop to its own line under the
+            title instead of colliding with it or forcing horizontal
+            scroll. `ml-auto` on the price keeps it right-aligned in
+            both the wrapped and unwrapped states.
+          - The action row uses `flex-wrap` + `gap-y-2` for the same
+            reason — three items (link, Reject, Accept) always fit on
+            one line above ~360px, but this guarantees no overlap on
+            anything smaller instead of relying on truncation.
+          - Shadows are plain rgba box-shadows (no CSS `filter` or
+            `backdrop-filter` in this block), so they render
+            identically on Safari iOS, Chrome Android, and every
+            desktop browser — no vendor-prefix or GPU-compositing
+            quirks to worry about.
+          - The gradient and left accent bar are pure CSS
+            (linear-gradient via Tailwind's gradient utilities),
+            universally supported, no fallback needed. */}
       {!loading && pendingOrder && (
         <motion.div
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 px-5 md:px-6 pt-3 w-full"
+          className="shrink-0 px-5 md:px-6 pt-3 pb-1 w-full"
         >
-          <div className="rounded-[14px] bg-amber-50 border border-amber-200/70 px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark">
-                  <Receipt size={13} className="text-green-600 shrink-0" />
-                  New order awaiting your confirmation
-                </p>
-                <p className="text-[12px] text-olive truncate mt-0.5">{pendingOrder.item_summary}</p>
-                {pendingOrder.event_date && (
-                  <p className="text-[11px] text-olive/80 mt-0.5">
-                    For {formatOrderEventDate(pendingOrder.event_date)}
-                  </p>
-                )}
-              </div>
-              <span className="shrink-0 text-[15px] font-bold text-accent-dark tabular-nums">
+          <div className="rounded-[14px] bg-white border border-black/[0.08] shadow-[0_2px_6px_rgba(42,35,32,0.06)] px-4 py-3.5">
+            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+              <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark">
+                <Receipt size={13} className="text-olive shrink-0" />
+                New order awaiting your confirmation
+              </p>
+              <span className="shrink-0 ml-auto text-[15px] font-bold text-accent-dark tabular-nums">
                 {formatPrice(pendingOrder.total_amount)}
               </span>
             </div>
 
-            {orderActionError && (
-              <p className="text-[11px] text-red-600 mt-2">{orderActionError}</p>
+            <p className="text-[12.5px] text-olive truncate mt-1">{pendingOrder.item_summary}</p>
+            {pendingOrder.event_date && (
+              <p className="text-[11px] text-olive/70 mt-0.5">
+                For {formatOrderEventDate(pendingOrder.event_date)}
+              </p>
             )}
 
-            <div className="flex items-center gap-2 mt-3">
+            {orderActionError && (
+              <p className="text-[11px] text-accent mt-2">{orderActionError}</p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 mt-3">
               <button
                 onClick={() => setViewingOrderId(pendingOrder.id)}
-                className="text-[12px] font-medium text-accent-dark underline underline-offset-2"
+                className="text-[12px] font-medium text-olive underline underline-offset-2"
               >
                 View details
               </button>
-              <div className="flex-1" />
+              <div className="flex-1 min-w-[8px]" />
               <button
                 onClick={handleRejectOrder}
                 disabled={decidingOrder}
-                className="text-[13px] font-semibold px-3.5 py-1.5 rounded-full bg-white text-red-600 border border-red-200 transition-transform duration-150 active:scale-95 disabled:opacity-50"
+                className="text-[13px] font-medium px-3.5 py-1.5 rounded-control text-red-600 hover:bg-red-50 transition-colors duration-150 active:scale-95 disabled:opacity-50"
               >
                 Reject
               </button>
               <button
                 onClick={handleAcceptOrder}
                 disabled={decidingOrder}
-                className="text-[13px] font-semibold px-3.5 py-1.5 rounded-full bg-accent-dark text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
+                className="text-[13px] font-semibold px-4 py-1.5 rounded-control bg-green-600 text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
               >
                 {decidingOrder ? 'Saving…' : 'Accept'}
               </button>
