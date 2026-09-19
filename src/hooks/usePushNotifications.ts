@@ -77,7 +77,17 @@ export function usePushNotifications() {
       setStatus('on');
     } catch (err) {
       console.error('Failed to enable push notifications:', err);
-      setError('Could not turn on notifications. Please try again.');
+      // push.ts throws a specific, actionable "VAPID key is
+      // misconfigured" error when the key itself is bad — that
+      // message already says exactly what's wrong and how to fix it,
+      // so show it as-is. Anything else (permission quirks, network
+      // blips, a Supabase error) still falls back to the generic
+      // message rather than showing a customer a raw stack trace.
+      const message =
+        err instanceof Error && err.message.startsWith('VAPID key is misconfigured')
+          ? err.message
+          : 'Could not turn on notifications. Please try again.';
+      setError(message);
     }
   }
 

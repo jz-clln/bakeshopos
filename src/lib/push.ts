@@ -5,14 +5,60 @@
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
 
+// Confirms VITE_VAPID_PUBLIC_KEY is actually usable before we ever try
+// to decode it. Web Push's applicationServerKey must be a base64url-
+// encoded, uncompressed P-256 public key — which always decodes to
+// exactly 65 raw bytes starting with 0x04. Catching a malformed value
+// here, instead of letting atob() throw a cryptic InvalidCharacterError
+// deep inside subscribeToPush(), turns a silent misconfiguration (wrong
+// value pasted into Vercel, stale build after rotating keys, a stray
+// quote mark from copy-pasting) into an error message that actually
+// says what's wrong and what to do about it.
+function validateVapidKeyFormat(base64String: string): void {
+  if (!base64String || base64String.trim().length === 0) {
+    throw new Error(
+      'VAPID key is misconfigured: VITE_VAPID_PUBLIC_KEY is empty or missing. Check your environment variables and redeploy.'
+    );
+  }
+
+  if (!/^[A-Za-z0-9\-_]+$/.test(base64String)) {
+    throw new Error(
+      "VAPID key is misconfigured: VITE_VAPID_PUBLIC_KEY contains characters that aren't valid base64url (check for stray quotes, spaces, or line breaks from copy-pasting). Check your environment variables and redeploy."
+    );
+  }
+}
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  validateVapidKeyFormat(base64String);
+
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
+
+  let rawData: string;
+  try {
+    rawData = window.atob(base64);
+  } catch {
+    throw new Error(
+      'VAPID key is misconfigured: VITE_VAPID_PUBLIC_KEY could not be decoded. It may be truncated or corrupted — copy it fresh from where the key pair was generated, rather than from a place it may have been re-pasted before. Check your environment variables and redeploy.'
+    );
+  }
+
   const outputArray = new Uint8Array(rawData.length);
   for (let i = 0; i < rawData.length; i++) {
     outputArray[i] = rawData.charCodeAt(i);
   }
+
+  // A valid Web Push VAPID public key always decodes to a 65-byte
+  // uncompressed P-256 point starting with 0x04. Anything else means
+  // the wrong value ended up in VITE_VAPID_PUBLIC_KEY — e.g. the
+  // private key was pasted in by mistake, or the key was truncated
+  // during copy-paste.
+  if (outputArray.length !== 65 || outputArray[0] !== 4) {
+    throw new Error(
+      `VAPID key is misconfigured: VITE_VAPID_PUBLIC_KEY decoded to ${outputArray.length} bytes instead of the expected 65 — this usually means the wrong value, or a truncated one, is set. Check your environment variables and redeploy.`
+    );
+  }
+
   return outputArray;
 }
 
