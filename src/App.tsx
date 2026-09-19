@@ -3,6 +3,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './lib/auth-context';
 import { AuthScreen } from './screens/AuthScreen';
+import { OnboardingShopScreen } from './screens/OnboardingShopScreen';
 import { AppShell } from './components/layout/AppShell';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { OrdersScreen } from './screens/OrdersScreen';
@@ -20,7 +21,7 @@ import { TermsScreen } from './screens/TermsScreen';
 import { CookiesPolicyScreen } from './screens/CookiesPolicyScreen';
 
 export default function App() {
-  const { session, loading } = useAuth();
+  const { session, organizationId, loading } = useAuth();
 
   if (loading) {
     return <div className="min-h-screen bg-platinum/30" />;
@@ -43,6 +44,17 @@ export default function App() {
 
         {!session ? (
           <Route path="*" element={<AuthScreen />} />
+        ) : !organizationId ? (
+          // Signed in but no shop yet. In practice this is almost always
+          // a first-time Google/Facebook sign-up — OAuth can't carry
+          // organization_name through to the 0016_auth_bootstrap.sql
+          // trigger the way email/password signUp() does, so there's no
+          // membership row yet. Also catches any other account that
+          // ends up without one. Once invited-staff membership rows
+          // exist (Phase 1), this branch may need to distinguish
+          // "no shop yet" from "invite pending" — not a concern today
+          // since that flow isn't built yet.
+          <Route path="*" element={<OnboardingShopScreen />} />
         ) : (
           <>
             <Route element={<AppShell />}>
