@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, MotionConfig } from 'framer-motion';
-import { Plus, ClipboardList, Clock, MessageCircle, ArrowUpRight } from 'lucide-react';
+import { Plus, ClipboardList, Clock, MessageCircle, ArrowUpRight, Bell } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { Switch } from '../components/ui/Switch';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
@@ -11,6 +11,7 @@ import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
 import { formatPrice } from '../lib/currency';
 import { fetchShopProfile, setAcceptingOrders } from '../api/shopProfile';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import type { OrderStatus } from '../types/catalog';
 
 /* Motion — spring-based throughout, matching NavBar.tsx/Sidebar.tsx,
@@ -109,6 +110,11 @@ function todayRange() {
 /* Screen */
 export function DashboardScreen() {
   const { organizationId, session } = useAuth();
+
+  // Renamed on destructure — DashboardScreen already has its own
+  // `loading` state for the stats/orders fetch below, so this avoids
+  // shadowing it.
+  const { status: pushStatus, loading: pushStatusLoading } = usePushNotifications();
 
   const [stats, setStats] = useState<DashboardStats>({
     totalOrders: 0,
@@ -303,13 +309,32 @@ export function DashboardScreen() {
               {greeting}, {shopName} 👋
             </h1>
           </div>
-          <Link
-            to="/orders/new"
-            className="hidden sm:inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] shrink-0"
-          >
-            <Plus size={15} strokeWidth={2.5} />
-            New order
-          </Link>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Notification bell — the only screen this appears on.
+                Links to the existing push-notification settings screen
+                rather than duplicating that logic here. The dot is a
+                quiet nudge, not an unread count: it just reflects
+                whether push is actually turned on for this device. */}
+            <Link
+              to="/settings/notifications"
+              className="relative w-11 h-11 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] flex items-center justify-center transition-transform duration-150 active:scale-90"
+              aria-label="Notifications"
+            >
+              <Bell size={17} className="text-olive" />
+              {!pushStatusLoading && pushStatus !== 'on' && (
+                <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+              )}
+            </Link>
+
+            <Link
+              to="/orders/new"
+              className="hidden sm:inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+            >
+              <Plus size={15} strokeWidth={2.5} />
+              New order
+            </Link>
+          </div>
         </motion.div>
 
         {/* Accepting orders status — skeleton mirrors the real card's
@@ -386,9 +411,6 @@ export function DashboardScreen() {
             aria-busy={loading}
             className="lg:col-span-3 relative overflow-hidden rounded-[20px] bg-accent-dark p-6 md:p-5 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
           >
-            <div className="pointer-events-none absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5" />
-            <div className="pointer-events-none absolute -bottom-14 -right-4 w-64 h-64 rounded-full bg-white/[0.03]" />
-
             <p className="text-white/60 text-sm font-medium mb-1">Revenue today</p>
 
             {loading ? (
