@@ -585,14 +585,14 @@ export function ConversationDetailScreen() {
               <button
                 onClick={handleRejectOrder}
                 disabled={decidingOrder}
-                className="text-[13px] font-medium px-3.5 py-1.5 rounded-control text-red-600 hover:bg-red-50 transition-colors duration-150 active:scale-95 disabled:opacity-50"
+                className="text-[13px] font-medium px-3.5 py-1.5 rounded-control text-olive hover:bg-platinum/60 transition-colors duration-150 active:scale-95 disabled:opacity-50"
               >
                 Reject
               </button>
               <button
                 onClick={handleAcceptOrder}
                 disabled={decidingOrder}
-                className="text-[13px] font-semibold px-4 py-1.5 rounded-control bg-green-600 text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
+                className="text-[13px] font-semibold px-4 py-1.5 rounded-control bg-accent-dark text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
               >
                 {decidingOrder ? 'Saving…' : 'Accept'}
               </button>
