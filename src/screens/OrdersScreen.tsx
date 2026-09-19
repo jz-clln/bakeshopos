@@ -1,7 +1,7 @@
 // File: app/src/screens/OrdersScreen.tsx
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { Plus, ChevronRight, Inbox, WifiOff, RefreshCw, Wallet, Calendar } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
@@ -94,10 +94,6 @@ function todayRange() {
 
 function formatEventDate(iso: string | null): string | null {
   if (!iso) return null;
-  // Split on 'T'/space rather than `new Date(iso)` — event_date is a
-  // plain date (no time/timezone), and letting the Date constructor
-  // parse it can shift it a day in either direction depending on the
-  // browser's local timezone.
   const [year, month, day] = iso.split(/[-T]/).map(Number);
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
@@ -115,15 +111,29 @@ export function OrdersScreen() {
   const [menuLoading, setMenuLoading] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
 
-  // Which order's payment sheet is open — separate from
-  // openMenuOrderId, since a payment can be recorded regardless of
-  // whether the status menu happens to be open too.
   const [paymentSheetOrderId, setPaymentSheetOrderId] = useState<string | null>(null);
-
-  // Which order's details popup is open — tapping anywhere on a row
-  // opens this; the status pill and Record Payment button both stop
-  // propagation so they don't also trigger it.
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  // Lets other screens (DashboardScreen's recent-orders list) deep-link
+  // straight to a specific order's detail modal via /orders?open=<id>,
+  // without needing a dedicated /orders/:id route. Runs once per
+  // incoming ?open= value, opens the modal, then strips the param via
+  // replace so it doesn't linger in the URL or re-fire on back/forward.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId) return;
+
+    setSelectedOrderId(openId);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('open');
+        return next;
+      },
+      { replace: true }
+    );
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!organizationId) return;
