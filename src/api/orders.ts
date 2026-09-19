@@ -249,13 +249,19 @@ export async function fetchPendingOrderForConversation(
 }
 
 /**
- * Owner tapped "Accept" on an AI-drafted order. Named for intent
- * rather than exposing the raw target status, so callers (and future
- * ones, e.g. an Accept action added to OrdersScreen later) don't need
- * to know or repeat which OrderStatus "accepted" maps to.
+ * Owner tapped "Accept" on an AI-drafted order. Moves it from a raw
+ * AI draft into a real quote — NOT straight to 'confirmed'.
+ * transition_order_status() requires a verified payment before
+ * anything can become 'confirmed' (see the org's
+ * confirmation_requires_full_payment setting), and an order the AI
+ * just drafted mid-chat has no payment on it yet. 'quote' is the
+ * only transition inquiry actually allows: it says "yes, this is a
+ * legitimate order" without pretending payment has happened.
+ * Confirmation happens later in the normal quote -> pending_payment
+ * -> confirmed flow, once the customer has actually paid.
  */
 export async function acceptDraftOrder(orderId: string, changedBy?: string) {
-  return transitionOrderStatus(orderId, 'confirmed', changedBy);
+  return transitionOrderStatus(orderId, 'quote', changedBy);
 }
 
 /**
