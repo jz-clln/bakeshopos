@@ -21,6 +21,11 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  // Re-checks membership without a full page reload. Needed after the
+  // onboarding screen creates a shop for a first-time OAuth user —
+  // App.tsx decides whether to show that screen based on
+  // organizationId, so this is what flips it back to the normal app.
+  refreshOrganization: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -79,9 +84,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }
 
+  async function refreshOrganization() {
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    await loadMembership(currentSession);
+  }
+
   return (
     <AuthContext.Provider
-      value={{ session, organizationId, role, loading, signIn, signOut }}
+      value={{
+        session,
+        organizationId,
+        role,
+        loading,
+        signIn,
+        signOut,
+        refreshOrganization,
+      }}
     >
       {children}
     </AuthContext.Provider>
