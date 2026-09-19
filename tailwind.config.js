@@ -52,10 +52,19 @@ export default {
           '0%': { opacity: '0', transform: 'translateX(16px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
+        // Sweeping highlight for skeleton loading states — the
+        // background is a wide gradient and this just slides its
+        // position left to right, rather than the flat opacity
+        // on/off blink of Tailwind's built-in `animate-pulse`.
+        shimmer: {
+          '0%': { backgroundPosition: '150% 0' },
+          '100%': { backgroundPosition: '-150% 0' },
+        },
       },
       animation: {
         fadeInUp: 'fadeInUp 0.5s ease-out',
         slideInRight: 'slideInRight 0.35s ease-out',
+        shimmer: 'shimmer 1.8s ease-in-out infinite',
       },
       boxShadow: {
         // rgba values updated to match the new accent-dark (#2A2320 →
