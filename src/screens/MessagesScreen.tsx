@@ -45,6 +45,8 @@ export function MessagesScreen() {
   const [connected, setConnected] = useState(false);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiToggleSaving, setAiToggleSaving] = useState(false);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,9 +73,14 @@ export function MessagesScreen() {
     async function load() {
       setLoading(true);
 
-      const fbConnection = await getFacebookConnection(orgId);
+      const [fbConnection, orgRow] = await Promise.all([
+        getFacebookConnection(orgId),
+        supabase.from('organizations').select('ai_enabled').eq('id', orgId).single(),
+      ]);
+
       const isConnected = fbConnection?.status === 'connected';
       setConnected(isConnected);
+      setAiEnabled(orgRow.data?.ai_enabled ?? true);
 
       if (isConnected) {
         try {
@@ -121,6 +128,29 @@ export function MessagesScreen() {
     };
   }, [organizationId]);
 
+  // Global pause, not per-conversation — flips organizations.ai_enabled,
+  // which facebook-ai-respond checks before replying to ANY conversation
+  // for this shop. Optimistic update with a revert on failure, same
+  // pattern as elsewhere in the app.
+  async function handleToggleAi() {
+    if (!organizationId || aiToggleSaving) return;
+    const next = !aiEnabled;
+    setAiEnabled(next);
+    setAiToggleSaving(true);
+
+    const { error } = await supabase
+      .from('organizations')
+      .update({ ai_enabled: next })
+      .eq('id', organizationId);
+
+    setAiToggleSaving(false);
+
+    if (error) {
+      console.error('Failed to update AI status:', error);
+      setAiEnabled(!next);
+    }
+  }
+
   const totalUnread = conversations.reduce((n, c) => n + c.unread_count, 0);
 
   return (
@@ -146,6 +176,23 @@ export function MessagesScreen() {
           <Settings size={17} className="text-olive" />
         </Link>
       </motion.div>
+
+      {!loading && connected && (
+        <motion.div
+          custom={0.5} variants={fadeUp} initial="hidden" animate="visible"
+          className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4 flex items-center justify-between gap-4 mb-4"
+        >
+          <div className="min-w-0">
+            <p className="text-[15px] font-semibold text-accent-dark">AI Assistant</p>
+            <p className="text-[13px] text-olive mt-0.5">
+              {aiEnabled
+                ? 'Automatically replying to new messages.'
+                : 'Paused — new messages need your personal reply.'}
+            </p>
+          </div>
+          <ToggleSwitch checked={aiEnabled} onChange={handleToggleAi} label="AI Assistant" />
+        </motion.div>
+      )}
 
       {loading ? (
         <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] divide-y divide-platinum/60">
@@ -266,6 +313,35 @@ export function MessagesScreen() {
         </motion.div>
       )}
     </ScreenShell>
+  );
+}
+
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      className={`relative w-12 h-7 rounded-full transition-colors duration-200 shrink-0 ${
+        checked ? 'bg-accent-dark' : 'bg-black/15'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.25)] transition-transform duration-200 ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
   );
 }
 
