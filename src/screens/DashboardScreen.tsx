@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { formatPrice } from '../lib/currency';
 import { fetchShopProfile, setAcceptingOrders } from '../api/shopProfile';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { useHandoffCount } from '../hooks/useHandoffCount';
 import type { OrderStatus } from '../types/catalog';
 
 /* Motion — spring-based throughout, matching NavBar.tsx/Sidebar.tsx,
@@ -68,30 +69,28 @@ interface DashboardStats {
   completedOrders: number;
 }
 
+// Shortened pipeline: inquiry -> quote -> confirmed (once paid) ->
+// in_production -> completed, cancelled reachable from any
+// non-terminal status, refunded reachable from completed or
+// cancelled. See supabase/migrations/20260919_shorten_order_pipeline.sql.
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  inquiry:          'Inquiry',
-  quote:            'Quote',
-  pending_payment:  'Pending payment',
-  confirmed:        'Confirmed',
-  scheduled:        'Scheduled',
-  in_production:    'In production',
-  ready:            'Ready',
-  completed:        'Completed',
-  cancelled:        'Cancelled',
-  refunded:         'Refunded',
+  inquiry:       'Inquiry',
+  quote:         'Quote',
+  confirmed:     'Confirmed',
+  in_production: 'In production',
+  completed:     'Done',
+  cancelled:     'Cancelled',
+  refunded:      'Refunded',
 };
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  inquiry:          'bg-platinum/60 text-olive',
-  quote:            'bg-accent-light/40 text-accent-dark',
-  pending_payment:  'bg-amber-50 text-amber-700',
-  confirmed:        'bg-accent-light/60 text-accent-dark',
-  scheduled:        'bg-blue-50 text-blue-700',
-  in_production:    'bg-platinum text-olive',
-  ready:            'bg-accent-dark text-white',
-  completed:        'bg-green-50 text-green-700',
-  cancelled:        'bg-red-50 text-red-600',
-  refunded:         'bg-gray-100 text-gray-600',
+  inquiry:       'bg-platinum/60 text-olive',
+  quote:         'bg-accent-light/40 text-accent-dark',
+  confirmed:     'bg-accent-light/60 text-accent-dark',
+  in_production: 'bg-platinum text-olive',
+  completed:     'bg-green-50 text-green-700',
+  cancelled:     'bg-red-50 text-red-600',
+  refunded:      'bg-gray-100 text-gray-600',
 };
 
 function initials(name: string) {
@@ -115,6 +114,7 @@ export function DashboardScreen() {
   // `loading` state for the stats/orders fetch below, so this avoids
   // shadowing it.
   const { status: pushStatus, loading: pushStatusLoading } = usePushNotifications();
+  const handoffCount = useHandoffCount(organizationId);
 
   const [stats, setStats] = useState<DashboardStats>({
     totalOrders: 0,
@@ -204,7 +204,7 @@ export function DashboardScreen() {
         (todayPayments ?? []).reduce((sum, p) => sum + (p.amount_paid ?? 0), 0) -
         refundedAmountToday;
 
-      const pendingPickups = orders.filter((o) => o.status === 'ready').length;
+      const pendingPickups = orders.filter((o) => o.status === 'in_production').length;
       const completedOrders = orders.filter((o) => o.status === 'completed').length;
 
       return {
@@ -311,19 +311,27 @@ export function DashboardScreen() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Notification bell — the only screen this appears on.
-                Links to the existing push-notification settings screen
-                rather than duplicating that logic here. The dot is a
-                quiet nudge, not an unread count: it just reflects
-                whether push is actually turned on for this device. */}
+            {/* Notification bell — the only screen this appears on. A
+                pending handoff is more urgent and more actionable than
+                "push isn't enabled," so when both are true the numeric
+                badge wins and the bell routes to Messages instead of
+                Settings — tapping it should take you straight to the
+                thing that needs you. */}
             <Link
-              to="/settings/notifications"
+              to={handoffCount > 0 ? '/messages' : '/settings/notifications'}
               className="relative w-11 h-11 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] flex items-center justify-center transition-transform duration-150 active:scale-90"
-              aria-label="Notifications"
+              aria-label={handoffCount > 0 ? `${handoffCount} conversations need you` : 'Notifications'}
             >
               <Bell size={17} className="text-olive" />
-              {!pushStatusLoading && pushStatus !== 'on' && (
-                <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+              {handoffCount > 0 ? (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                  {handoffCount > 9 ? '9+' : handoffCount}
+                </span>
+              ) : (
+                !pushStatusLoading &&
+                pushStatus !== 'on' && (
+                  <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+                )
               )}
             </Link>
 
