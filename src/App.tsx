@@ -2,6 +2,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './lib/auth-context';
+import { ScrollToTop } from './components/ScrollToTop';
 import { AuthScreen } from './screens/AuthScreen';
 import { OnboardingShopScreen } from './screens/OnboardingShopScreen';
 import { AppShell } from './components/layout/AppShell';
@@ -34,6 +35,12 @@ export default function App() {
         v7_relativeSplatPath: true,
       }}
     >
+      {/* Sits inside the Router (needs useLocation) but outside Routes,
+          so it fires on every navigation regardless of which branch —
+          public legal pages, onboarding, or the authenticated app —
+          ends up matching. */}
+      <ScrollToTop />
+
       <Routes>
         {/* Public, reachable whether signed in or not — required for
             Meta's app review (public Privacy Policy URL) and so people
