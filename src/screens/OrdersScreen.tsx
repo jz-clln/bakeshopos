@@ -47,30 +47,28 @@ interface OrderRow {
   event_date: string | null;
 }
 
+// Shortened pipeline: inquiry -> quote -> confirmed (once paid) ->
+// in_production -> completed, cancelled reachable from any
+// non-terminal status, refunded reachable from completed or
+// cancelled. See supabase/migrations/20260919_shorten_order_pipeline.sql.
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  inquiry:         'Inquiry',
-  quote:           'Quote sent',
-  pending_payment: 'Awaiting payment',
-  confirmed:       'Confirmed',
-  scheduled:       'Scheduled',
-  in_production:   'In production',
-  ready:           'Ready',
-  completed:       'Completed',
-  cancelled:       'Cancelled',
-  refunded:        'Refunded',
+  inquiry:       'Inquiry',
+  quote:         'Quote sent',
+  confirmed:     'Confirmed',
+  in_production: 'In production',
+  completed:     'Done',
+  cancelled:     'Cancelled',
+  refunded:      'Refunded',
 };
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  inquiry:         'bg-platinum text-olive',
-  quote:           'bg-accent-light/50 text-accent-dark',
-  pending_payment: 'bg-amber-50 text-amber-700',
-  confirmed:       'bg-accent-light/50 text-accent-dark',
-  scheduled:       'bg-blue-50 text-blue-700',
-  in_production:   'bg-accent-dark text-white',
-  ready:           'bg-accent-dark text-white',
-  completed:       'bg-green-50 text-green-700',
-  cancelled:       'bg-red-50 text-red-600',
-  refunded:        'bg-red-50 text-red-600',
+  inquiry:       'bg-platinum text-olive',
+  quote:         'bg-accent-light/50 text-accent-dark',
+  confirmed:     'bg-accent-light/50 text-accent-dark',
+  in_production: 'bg-accent-dark text-white',
+  completed:     'bg-green-50 text-green-700',
+  cancelled:     'bg-red-50 text-red-600',
+  refunded:      'bg-red-50 text-red-600',
 };
 
 type TabValue = 'all' | OrderStatus;
@@ -81,7 +79,6 @@ const TABS: { label: string; value: TabValue }[] = [
   { label: 'Quote',     value: 'quote'     },
   { label: 'Confirmed', value: 'confirmed' },
   { label: 'In prod.',  value: 'in_production' },
-  { label: 'Ready',     value: 'ready'     },
 ];
 
 function todayRange() {
@@ -382,7 +379,11 @@ export function OrdersScreen() {
                     {orders.map((order) => {
                       const hasAvatar = !!order.customer_avatar_url;
                       const preset = getAvatarPreset(order.customer_id);
-                      const canRecordPayment = ['quote', 'pending_payment'].includes(order.status);
+                      // pending_payment retired — 'quote' is now the
+                      // only pre-confirmation status a payment gets
+                      // recorded against. See
+                      // 20260919_shorten_order_pipeline.sql.
+                      const canRecordPayment = order.status === 'quote';
                       const eventDateLabel = formatEventDate(order.event_date);
 
                       return (
