@@ -69,17 +69,26 @@ export type ProductWithDetails = Product & {
   options: (ProductOption & { values: ProductOptionValue[] })[];
 };
 
-// Mirrors the `order_status` Postgres enum exactly (confirmed via
-// SQL query against pg_enum — do not add/remove values here without
-// also updating order_status_transitions in the database).
+// Mirrors the ACTIVE subset of the `order_status` Postgres enum, per
+// the shortened pipeline in
+// supabase/migrations/20260919_shorten_order_pipeline.sql:
+// inquiry -> quote -> confirmed (once paid) -> in_production ->
+// completed, with cancelled reachable from any non-terminal status
+// and refunded reachable from completed or cancelled.
+//
+// The enum itself still technically contains 'pending_payment',
+// 'scheduled', and 'ready' — Postgres can't drop enum values without
+// recreating the column, so they're left in place at the database
+// level, unused. Every existing row was migrated off them, and
+// order_status_transitions has no transition into or out of them
+// anymore, so the app should never produce or need to handle these
+// three again. Do not add them back here without also updating
+// order_status_transitions in the database.
 export type OrderStatus =
   | 'inquiry'
   | 'quote'
-  | 'pending_payment'
   | 'confirmed'
-  | 'scheduled'
   | 'in_production'
-  | 'ready'
   | 'completed'
   | 'cancelled'
   | 'refunded';
