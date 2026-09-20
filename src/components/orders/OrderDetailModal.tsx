@@ -9,30 +9,27 @@ import type { OrderStatus } from '../../types/catalog';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
+// Kept in sync with the shortened OrderStatus union in types/catalog.ts —
+// pending_payment, scheduled, and ready were intentionally removed
+// there (see that file's comment) and must not be reintroduced here.
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  inquiry:         'Inquiry',
-  quote:           'Quote sent',
-  pending_payment: 'Awaiting payment',
-  confirmed:       'Confirmed',
-  scheduled:       'Scheduled',
-  in_production:   'In production',
-  ready:           'Ready',
-  completed:       'Completed',
-  cancelled:       'Cancelled',
-  refunded:        'Refunded',
+  inquiry:       'Inquiry',
+  quote:         'Quote sent',
+  confirmed:     'Confirmed',
+  in_production: 'In production',
+  completed:     'Completed',
+  cancelled:     'Cancelled',
+  refunded:      'Refunded',
 };
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  inquiry:         'bg-platinum text-olive',
-  quote:           'bg-accent-light/50 text-accent-dark',
-  pending_payment: 'bg-amber-50 text-amber-700',
-  confirmed:       'bg-accent-light/50 text-accent-dark',
-  scheduled:       'bg-blue-50 text-blue-700',
-  in_production:   'bg-accent-dark text-white',
-  ready:           'bg-accent-dark text-white',
-  completed:       'bg-green-50 text-green-700',
-  cancelled:       'bg-red-50 text-red-600',
-  refunded:        'bg-red-50 text-red-600',
+  inquiry:       'bg-platinum text-olive',
+  quote:         'bg-accent-light/50 text-accent-dark',
+  confirmed:     'bg-accent-light/50 text-accent-dark',
+  in_production: 'bg-accent-dark text-white',
+  completed:     'bg-green-50 text-green-700',
+  cancelled:     'bg-red-50 text-red-600',
+  refunded:      'bg-red-50 text-red-600',
 };
 
 const FULFILLMENT_LABEL: Record<string, string> = {
