@@ -1,5 +1,6 @@
 // File: app/src/components/layout/AppShell.tsx
 
+import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './SideBar';
@@ -12,6 +13,19 @@ export function AppShell() {
   const { organizationId } = useAuth();
   const unreadMessageCount = useUnreadMessageCount(organizationId);
   const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+
+  // The window-level ScrollToTop in App.tsx doesn't reach this —
+  // on desktop, <main> below scrolls internally (md:overflow-y-auto)
+  // while its parent is md:overflow-hidden, so the window itself
+  // never moves and window.scrollTo() would be a no-op here. This
+  // resets the ACTUAL scrolling element for these routes instead.
+  // On mobile this is redundant with the window-level reset (there's
+  // no separate inner scroll container below the md breakpoint) —
+  // harmless overlap, not a conflict.
+  useEffect(() => {
+    mainRef.current?.scrollTo(0, 0);
+  }, [location.pathname]);
 
   // Single place where NAV_ITEMS gets its real badge data merged in —
   // Sidebar and TabBar just render whatever array they're handed.
@@ -24,7 +38,10 @@ export function AppShell() {
   return (
     <div className="min-h-[100dvh] md:h-dvh bg-platinum/30 md:flex md:overflow-hidden">
       <Sidebar navItems={navItems} />
-      <main className="flex-1 min-w-0 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0 md:h-dvh md:overflow-y-auto">
+      <main
+        ref={mainRef}
+        className="flex-1 min-w-0 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0 md:h-dvh md:overflow-y-auto"
+      >
         {/*
           Opacity-only route transition — deliberately NOT animating
           y/scale here. Framer Motion drives those via CSS `transform`,
