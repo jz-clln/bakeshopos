@@ -49,3 +49,45 @@ export async function fetchAiTokenUsage(organizationId: string): Promise<AiToken
     monthlyLimit: (orgData as any)?.monthly_ai_token_limit ?? 1_000_000,
   };
 }
+
+export type GuardrailOutcome = 'corrected' | 'escalated';
+
+export interface GuardrailEvent {
+  id: string;
+  createdAt: string;
+  outcome: GuardrailOutcome;
+  conversationId: string;
+  customerName: string;
+}
+
+/**
+ * Recent times Keki's order-promise guardrail fired — either it
+ * caught itself and retried successfully ('corrected'), or it ran out
+ * of retries and handed the conversation to handler: 'handoff_required'
+ * ('escalated'). Backed by ai_events.guardrail_outcome, set from
+ * facebook-ai-respond/index.ts. Ordered most recent first, capped at
+ * `limit` since this is a "recent activity" glance, not a full audit
+ * log.
+ */
+export async function fetchGuardrailEvents(
+  organizationId: string,
+  limit: number = 10
+): Promise<GuardrailEvent[]> {
+  const { data, error } = await supabase
+    .from('ai_events')
+    .select('id, created_at, guardrail_outcome, conversation_id, conversations(customers(full_name))')
+    .eq('organization_id', organizationId)
+    .not('guardrail_outcome', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    outcome: row.guardrail_outcome as GuardrailOutcome,
+    conversationId: row.conversation_id,
+    customerName: row.conversations?.customers?.full_name ?? 'A customer',
+  }));
+}
