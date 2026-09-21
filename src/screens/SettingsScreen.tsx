@@ -18,8 +18,17 @@ import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { getFacebookConnection, startFacebookConnect, disconnectFacebook, type FacebookConnection } from '../api/facebook';
 import { fetchShopIdentity, type ShopIdentity } from '../api/shopProfile';
-import { fetchAiLanguage, setAiLanguage, fetchAiTokenUsage, type AiLanguage, type AiTokenUsage } from '../api/aiSettings';
+import {
+  fetchAiLanguage,
+  setAiLanguage,
+  fetchAiTokenUsage,
+  fetchGuardrailEvents,
+  type AiLanguage,
+  type AiTokenUsage,
+  type GuardrailEvent,
+} from '../api/aiSettings';
 import { UsageMeter } from '../components/settings/UsageMeter';
+import { GuardrailActivity } from '../components/settings/GuardrailActivity';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -202,6 +211,30 @@ export function SettingsScreen() {
     };
   }, [organizationId]);
 
+  // Recent guardrail activity — again its own loading/error state, so
+  // a failure here never blocks the token usage numbers above it from
+  // showing, and vice versa.
+  const [guardrailEvents, setGuardrailEvents] = useState<GuardrailEvent[] | null>(null);
+  const [guardrailError, setGuardrailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+
+    fetchGuardrailEvents(organizationId)
+      .then((events) => {
+        if (!cancelled) setGuardrailEvents(events);
+      })
+      .catch((err) => {
+        console.error('Failed to load guardrail activity:', err);
+        if (!cancelled) setGuardrailError('Could not load recent activity.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
   return (
     <ScreenShell>
       {/* Header */}
@@ -374,6 +407,24 @@ export function SettingsScreen() {
               </div>
             </div>
           ) : null}
+
+          {/* Recent guardrail activity — separated from the token
+              numbers above by its own divider, since it's a distinct
+              kind of information (what happened) rather than another
+              usage statistic (how much). */}
+          <div className="mt-4 pt-4 border-t border-platinum/60">
+            <p className="text-[13px] font-medium text-accent-dark mb-2">Recent activity</p>
+            {guardrailEvents === null && !guardrailError ? (
+              <div className="space-y-2">
+                <div className="h-10 rounded-[10px] bg-platinum/60 animate-pulse" aria-hidden="true" />
+                <div className="h-10 rounded-[10px] bg-platinum/50 animate-pulse" aria-hidden="true" />
+              </div>
+            ) : guardrailError ? (
+              <p className="text-[13px] text-olive">{guardrailError}</p>
+            ) : (
+              <GuardrailActivity events={guardrailEvents ?? []} />
+            )}
+          </div>
         </div>
       </motion.section>
 
