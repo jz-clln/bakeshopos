@@ -81,14 +81,6 @@ const TABS: { label: string; value: TabValue }[] = [
   { label: 'In prod.',  value: 'in_production' },
 ];
 
-function todayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  return { start: start.toISOString(), end: end.toISOString() };
-}
-
 function formatEventDate(iso: string | null): string | null {
   if (!iso) return null;
   const [year, month, day] = iso.split(/[-T]/).map(Number);
@@ -141,14 +133,20 @@ export function OrdersScreen() {
     if (!organizationId) return;
     setLoading(true);
     setError(false);
-    const { start, end } = todayRange();
 
+    // NOTE: this screen used to always filter to today's orders only
+    // (gte/lte against a start-of-day/end-of-day range), regardless
+    // of which tab was selected — including "All." That meant any
+    // order placed on a previous day became invisible here even
+    // though it was never deleted, which is exactly the "orders
+    // disappeared" report this fixed. "All" now genuinely means all
+    // orders for this shop; if a "today only" or date-range view is
+    // wanted later, it should be its own explicit filter control, not
+    // a hidden default baked into every tab.
     let query = supabase
       .from('order_list_view')
       .select('id, customer_id, customer_name, summary, total_quantity, total_amount, status, created_at, event_date')
       .eq('organization_id', organizationId)
-      .gte('created_at', start)
-      .lte('created_at', end)
       .order('created_at', { ascending: false });
 
     if (activeTab !== 'all') {
@@ -251,7 +249,7 @@ export function OrdersScreen() {
               </h1>
               {!loading && !error && orders.length > 0 && (
                 <p className="text-[13px] text-olive mt-0.5">
-                  {orders.length} {orders.length === 1 ? 'order' : 'orders'} today
+                  {orders.length} {orders.length === 1 ? 'order' : 'orders'}
                 </p>
               )}
             </div>
@@ -352,7 +350,7 @@ export function OrdersScreen() {
                     <Inbox size={18} className="text-olive" />
                   </div>
                   <p className="text-sm text-olive">
-                    No {activeTab === 'all' ? '' : STATUS_LABEL[activeTab as OrderStatus].toLowerCase() + ' '}orders today.
+                    No {activeTab === 'all' ? '' : STATUS_LABEL[activeTab as OrderStatus].toLowerCase() + ' '}orders yet.
                   </p>
                   <Link
                     to="/orders/new"
