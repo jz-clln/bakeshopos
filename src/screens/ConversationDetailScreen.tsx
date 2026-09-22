@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check, Receipt } from 'lucide-react';
+import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check, Receipt, Clock } from 'lucide-react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   fetchConversationDetail,
@@ -138,11 +138,14 @@ export function ConversationDetailScreen() {
   // sent by the owner from another tab/device) drop straight into
   // the conversation without a manual refresh. Row updates cover a
   // delivery_status flipping from queued to sent/failed after the
-  // fact. Both are filtered to this exact conversation_id. The orders
-  // listener refreshes the pending-order banner the same way: a new
-  // draft_order INSERT shows the banner, and an UPDATE (accepted or
-  // rejected from another tab/device) hides it in sync, since the
-  // refetch only ever returns a row still sitting at status inquiry.
+  // fact — this is also how a message that was queued for the
+  // 24-hour window (see notify-order-approved / facebook-messenger-
+  // webhook) visually updates the moment it actually goes out,
+  // without needing a page reload. The orders listener refreshes the
+  // pending-order banner the same way: a new draft_order INSERT shows
+  // the banner, and an UPDATE (accepted or rejected from another
+  // tab/device) hides it in sync, since the refetch only ever returns
+  // a row still sitting at status inquiry.
   useEffect(() => {
     if (!conversationId) return;
 
@@ -527,26 +530,7 @@ export function ConversationDetailScreen() {
       )}
 
       {/* Pending order banner — shown while an AI-drafted order for
-          this conversation is still sitting at status: inquiry.
-
-          Layout notes for cross-device safety:
-          - The header row uses `flex-wrap` so on very narrow phones
-            (≤340px) the price can drop to its own line under the
-            title instead of colliding with it or forcing horizontal
-            scroll. `ml-auto` on the price keeps it right-aligned in
-            both the wrapped and unwrapped states.
-          - The action row uses `flex-wrap` + `gap-y-2` for the same
-            reason — three items (link, Reject, Accept) always fit on
-            one line above ~360px, but this guarantees no overlap on
-            anything smaller instead of relying on truncation.
-          - Shadows are plain rgba box-shadows (no CSS `filter` or
-            `backdrop-filter` in this block), so they render
-            identically on Safari iOS, Chrome Android, and every
-            desktop browser — no vendor-prefix or GPU-compositing
-            quirks to worry about.
-          - The gradient and left accent bar are pure CSS
-            (linear-gradient via Tailwind's gradient utilities),
-            universally supported, no fallback needed. */}
+          this conversation is still sitting at status: inquiry. */}
       {!loading && pendingOrder && (
         <motion.div
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
@@ -601,14 +585,7 @@ export function ConversationDetailScreen() {
         </motion.div>
       )}
 
-      {/* Message list — no centered max-width wrapper here either, so
-          the thread always fills the space next to the sidebar with
-          just its own padding, instead of leaving a growing empty
-          gutter on a wide window or at low zoom. Each bubble still
-          caps its own width (see max-w-[min(75%,560px)] below) so
-          lines don't stretch unreadably long on an ultra-wide screen —
-          that cap lives on the bubble, not on the container, so it
-          never reintroduces side gutters. */}
+      {/* Message list */}
       <div
         className="flex-1 overflow-y-auto min-h-0 px-5 md:px-6"
         style={{ WebkitOverflowScrolling: 'touch' }}
@@ -631,7 +608,19 @@ export function ConversationDetailScreen() {
               const prev = messages[i - 1];
               const next = messages[i + 1];
               const isCustomer = msg.sender_type === 'customer';
-              const notDelivered = msg.delivery_status !== 'sent' && !isCustomer;
+
+              // 'queued' means this is waiting for the customer to
+              // message in again before it can send (see
+              // notify-order-approved / facebook-messenger-webhook —
+              // Meta retired the message tag that used to let this
+              // through immediately outside the 24-hour window).
+              // Deliberately kept distinct from notDelivered below:
+              // this ISN'T a failure, it's a message that WILL send,
+              // just not yet — showing the old "sending failed"
+              // copy on it would be actively misleading.
+              const isQueued = msg.delivery_status === 'queued' && !isCustomer;
+              const notDelivered =
+                msg.delivery_status !== 'sent' && msg.delivery_status !== 'queued' && !isCustomer;
 
               const showDateDivider = !prev || !isSameDay(msg.created_at, prev.created_at);
 
@@ -665,11 +654,6 @@ export function ConversationDetailScreen() {
                       groupedWithPrev ? 'mt-1' : 'mt-3'
                     }`}
                   >
-                    {/* Customer's photo rides beside their bubble, like
-                        a real two-person thread — shown once at the
-                        bottom of each cluster, with an equal-width
-                        empty slot on the other rows in that cluster so
-                        bubbles stay aligned either way. */}
                     {isCustomer && (
                       <div className="w-6 h-6 shrink-0">
                         {showTimestamp && (
@@ -686,6 +670,8 @@ export function ConversationDetailScreen() {
                     } ${
                       isCustomer
                         ? 'bg-white text-accent-dark shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_10px_rgba(0,0,0,0.09)] rounded-bl-[4px]'
+                        : isQueued
+                        ? 'bg-accent-light/20 text-accent-dark rounded-br-[4px] border border-accent-light'
                         : notDelivered
                         ? 'bg-platinum text-accent-dark rounded-br-[4px] border border-dashed border-olive/40'
                         : 'bg-accent-dark text-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.16)] rounded-br-[4px]'
@@ -705,14 +691,24 @@ export function ConversationDetailScreen() {
                       {showTimestamp && (
                         <div className={`flex items-center gap-1.5 mt-1 ${msg.media_url ? 'px-2.5 pb-1' : ''} ${isCustomer ? 'justify-start' : 'justify-end'}`}>
                           {!isCustomer && (
-                            <span className={`text-[10px] font-semibold uppercase tracking-wide ${notDelivered ? 'text-olive' : 'opacity-70'}`}>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wide ${
+                              isQueued ? 'text-accent-dark/60' : notDelivered ? 'text-olive' : 'opacity-70'
+                            }`}>
                               {msg.sender_type === 'ai' ? 'AI' : 'You'}
                             </span>
                           )}
-                          <span className={`text-[11px] ${isCustomer ? 'text-olive' : notDelivered ? 'text-olive' : 'text-white/60'}`}>
+                          <span className={`text-[11px] ${
+                            isCustomer ? 'text-olive' : isQueued ? 'text-accent-dark/60' : notDelivered ? 'text-olive' : 'text-white/60'
+                          }`}>
                             {formatTime(msg.created_at)}
                           </span>
                         </div>
+                      )}
+                      {isQueued && (
+                        <p className={`inline-flex items-center gap-1 text-[11px] text-accent-dark/70 ${msg.media_url ? 'px-2.5 pb-1.5' : 'mt-1'}`}>
+                          <Clock size={11} className="shrink-0" />
+                          Waiting to send — will deliver once they message again
+                        </p>
                       )}
                       {notDelivered && (
                         <p className={`text-[11px] text-amber-700 ${msg.media_url ? 'px-2.5 pb-1.5' : 'mt-1'}`}>
@@ -741,8 +737,6 @@ export function ConversationDetailScreen() {
             <p className="text-[12px] text-red-600 mb-1.5 px-1">{sendError}</p>
           )}
 
-          {/* Pending image preview — shown above the input when a
-              photo is staged but not yet sent. */}
           {pendingImagePreview && (
             <div className="mb-2 relative inline-block">
               <img
