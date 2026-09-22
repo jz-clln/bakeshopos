@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Settings } from 'lucide-react';
+import { ChevronRight, Settings, Receipt } from 'lucide-react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { ChannelIcon } from '../components/messages/ChannelIcon';
@@ -99,6 +99,9 @@ export function MessagesScreen() {
     // Live inbox: a new message, a new conversation, or a handler
     // change (AI reply, handoff, another device replying) triggers a
     // debounced refetch instead of requiring a manual page refresh.
+    // Also covers an order being drafted, accepted, or rejected — any
+    // change to `orders` refreshes the list too, so the pending-order
+    // badge below appears/disappears in sync without a manual reload.
     // Relies on RLS to scope which rows this owner actually receives.
     const channel = supabase
       .channel(`conversations-list-${orgId}`)
@@ -115,6 +118,11 @@ export function MessagesScreen() {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'conversations' },
+        () => scheduleListRefetch(orgId)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
         () => scheduleListRefetch(orgId)
       )
       .subscribe();
@@ -152,6 +160,7 @@ export function MessagesScreen() {
   }
 
   const totalUnread = conversations.reduce((n, c) => n + c.unread_count, 0);
+  const pendingOrderCount = conversations.reduce((n, c) => n + (c.has_pending_order ? 1 : 0), 0);
 
   return (
     <ScreenShell>
@@ -164,8 +173,15 @@ export function MessagesScreen() {
           <h1 className="font-display text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark">
             Messages
           </h1>
-          {connected && totalUnread > 0 && (
-            <p className="text-[13px] text-olive mt-0.5">{totalUnread} unread</p>
+          {connected && (totalUnread > 0 || pendingOrderCount > 0) && (
+            <p className="text-[13px] text-olive mt-0.5">
+              {[
+                totalUnread > 0 ? `${totalUnread} unread` : null,
+                pendingOrderCount > 0 ? `${pendingOrderCount} order${pendingOrderCount > 1 ? 's' : ''} to review` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
           )}
         </div>
         <Link
@@ -276,13 +292,34 @@ export function MessagesScreen() {
                           }}
                         />
                         <ChannelIcon size={16} className="absolute -bottom-0.5 -right-0.5" />
+                        {/* Pending-order marker on the avatar itself —
+                            visible even when the row is narrow enough
+                            that the name-row badge below might get
+                            tight. Opposite corner from ChannelIcon so
+                            the two never collide. */}
+                        {convo.has_pending_order && (
+                          <span
+                            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-amber-500 ring-2 ring-white flex items-center justify-center"
+                            title="Order awaiting your confirmation"
+                          >
+                            <Receipt size={9} className="text-white" strokeWidth={2.5} />
+                          </span>
+                        )}
                       </div>
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                          <p className={`text-[15px] truncate ${convo.unread_count > 0 ? 'font-bold text-accent-dark' : 'font-semibold text-accent-dark'}`}>
-                            {displayName}
-                          </p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className={`text-[15px] truncate ${convo.unread_count > 0 ? 'font-bold text-accent-dark' : 'font-semibold text-accent-dark'}`}>
+                              {displayName}
+                            </p>
+                            {convo.has_pending_order && (
+                              <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                                <Receipt size={9} strokeWidth={2.5} />
+                                Order
+                              </span>
+                            )}
+                          </div>
                           {convo.last_message_at && (
                             <span className="text-[12px] text-olive shrink-0">
                               {timeAgo(convo.last_message_at)}
