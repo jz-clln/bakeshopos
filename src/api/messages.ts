@@ -12,6 +12,12 @@ export interface ConversationListItem {
   last_message_preview: string | null;
   last_message_at: string | null;
   unread_count: number;
+  // True when this conversation has an AI-drafted order still sitting
+  // at status 'inquiry' — i.e. ConversationDetailScreen would be
+  // showing its "New order awaiting your confirmation" banner right
+  // now. Shown as a badge in the list so the owner can spot which
+  // customers need a decision without opening every conversation.
+  has_pending_order: boolean;
 }
 
 export async function fetchConversationList(organizationId: string): Promise<ConversationListItem[]> {
@@ -23,27 +29,38 @@ export async function fetchConversationList(organizationId: string): Promise<Con
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
   if (error) throw error;
-  const conversations = (data ?? []) as Array<Omit<ConversationListItem, 'customer_avatar_url'>>;
+  const conversations = (data ?? []) as Array<Omit<ConversationListItem, 'customer_avatar_url' | 'has_pending_order'>>;
 
   if (conversations.length === 0) return [];
 
+  const conversationIds = conversations.map((c) => c.id);
+
   // conversation_list_view doesn't expose the customer's avatar, so
   // fetch it directly from customers and merge it in here rather than
-  // touching a view whose full query we don't have on hand.
+  // touching a view whose full query we don't have on hand. The
+  // pending-order flag below follows the exact same pattern, for the
+  // exact same reason.
   const customerIds = [...new Set(conversations.map((c) => c.customer_id))];
-  const { data: customers, error: customersError } = await supabase
-    .from('customers')
-    .select('id, facebook_profile_pic_url')
-    .in('id', customerIds);
+  const [{ data: customers, error: customersError }, { data: pendingOrders, error: pendingOrdersError }] =
+    await Promise.all([
+      supabase.from('customers').select('id, facebook_profile_pic_url').in('id', customerIds),
+      supabase.from('orders').select('conversation_id').eq('organization_id', organizationId).eq('status', 'inquiry').in('conversation_id', conversationIds),
+    ]);
 
   if (customersError) throw customersError;
+  if (pendingOrdersError) throw pendingOrdersError;
+
   const avatarByCustomerId = new Map(
     (customers ?? []).map((c) => [c.id, c.facebook_profile_pic_url as string | null])
+  );
+  const conversationIdsWithPendingOrder = new Set(
+    (pendingOrders ?? []).map((o) => o.conversation_id as string)
   );
 
   return conversations.map((c) => ({
     ...c,
     customer_avatar_url: avatarByCustomerId.get(c.customer_id) ?? null,
+    has_pending_order: conversationIdsWithPendingOrder.has(c.id),
   }));
 }
 
@@ -78,7 +95,13 @@ export interface MessageRow {
   body: string | null;
   media_url: string | null;
   created_at: string;
-  delivery_status: 'sent' | 'blocked_window' | 'failed';
+  // 'queued' added alongside the notify-order-approved fallback: a
+  // message that couldn't send immediately because Facebook's
+  // 24-hour window was closed (Meta retired the message tag that
+  // used to bypass this), waiting to go out the moment the customer
+  // messages in again. Distinct from 'failed' — see
+  // ConversationDetailScreen.tsx's isQueued handling.
+  delivery_status: 'sent' | 'blocked_window' | 'failed' | 'queued';
 }
 
 export async function fetchMessages(conversationId: string): Promise<MessageRow[]> {
