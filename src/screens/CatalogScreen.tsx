@@ -3,143 +3,362 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, ChevronRight, X } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  ChevronRight,
+  X,
+  Package,
+} from 'lucide-react';
+
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useCategories } from '../hooks/useCategories';
 import { useProducts } from '../hooks/useProducts';
 import { formatPrice } from '../lib/currency';
 import { getStartingPrice } from '../lib/catalog-helpers';
-import type { ProductCategory, ProductListItem } from '../types/catalog';
+
+import type {
+  ProductCategory,
+  ProductListItem,
+} from '../types/catalog';
+
+/* ============================================================
+   MOTION
+============================================================ */
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: {
+    opacity: 0,
+    y: 8,
+  },
+
   visible: (i: number) => ({
-    opacity: 1, y: 0,
-    transition: { duration: 0.26, ease: EASE, delay: i * 0.05 },
+    opacity: 1,
+    y: 0,
+
+    transition: {
+      duration: 0.26,
+      ease: EASE,
+      delay: i * 0.05,
+    },
   }),
 };
 
 const listContainer = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.05 } },
+
+  visible: {
+    transition: {
+      staggerChildren: 0.05,
+    },
+  },
 };
 
 const listRow = {
-  hidden: { opacity: 0, y: 6 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: EASE } },
+  hidden: {
+    opacity: 0,
+    y: 6,
+  },
+
+  visible: {
+    opacity: 1,
+    y: 0,
+
+    transition: {
+      duration: 0.22,
+      ease: EASE,
+    },
+  },
 };
 
-/* Screen */
+/* ============================================================
+   CATALOG SCREEN
+============================================================ */
+
 export function CatalogScreen() {
   const [query, setQuery] = useState('');
-  const { data: categories, isLoading: catLoading, isError: catError } = useCategories();
-  const { data: products,   isLoading: prodLoading, isError: prodError } = useProducts();
+
+  const {
+    data: categories,
+    isLoading: catLoading,
+    isError: catError,
+  } = useCategories();
+
+  const {
+    data: products,
+    isLoading: prodLoading,
+    isError: prodError,
+  } = useProducts();
 
   const isLoading = catLoading || prodLoading;
-  const isError   = catError  || prodError;
+  const isError = catError || prodError;
 
   const filtered = useMemo(
-    () => (products ?? []).filter((p) => p.name.toLowerCase().includes(query.toLowerCase())),
+    () =>
+      (products ?? []).filter((p) =>
+        p.name.toLowerCase().includes(query.toLowerCase())
+      ),
     [products, query]
   );
 
   return (
     <ScreenShell>
-      {/* Header */}
-      <motion.div
-        className="flex items-center justify-between gap-4 mb-5"
-        custom={0} variants={fadeUp} initial="hidden" animate="visible"
-      >
-        <h1 className="font-display text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark">
-          Catalog
-        </h1>
-        <Link
-          to="/catalog/new"
-          className="hidden sm:inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
-        >
-          <Plus size={15} strokeWidth={2.5} />
-          Add product
-        </Link>
-      </motion.div>
+      <div className="mx-auto w-full min-w-0 max-w-[1200px] pb-6">
 
-      <div className="max-w-2xl">
-        {/* Search */}
-        <motion.div
-          custom={1} variants={fadeUp} initial="hidden" animate="visible"
-          className="relative mb-5"
+        {/* ==================================================
+            HEADER
+        ================================================== */}
+
+        <motion.header
+          custom={0}
+          variants={fadeUp}
+          initial="hidden"
+          animate="visible"
+          className="mb-5 flex items-center justify-between gap-3"
         >
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-olive pointer-events-none" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search products…"
-            aria-label="Search products"
-            className="w-full h-11 pl-10 pr-10 rounded-full bg-white border border-platinum/70 text-[15px] text-accent-dark placeholder:text-olive/60 focus:outline-none focus:ring-2 focus:ring-accent-dark/20 shadow-[0_1px_4px_rgba(0,0,0,0.05)] transition-shadow duration-200"
-          />
-          {query.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              aria-label="Clear search"
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-platinum/70 flex items-center justify-center text-olive transition-colors duration-150 hover:bg-platinum active:scale-90"
-            >
-              <X size={13} strokeWidth={2.5} />
-            </button>
+          {/* Title */}
+
+          <div className="min-w-0 flex-1">
+
+            <h1 className="font-display text-[23px] font-bold leading-tight tracking-[-0.035em] text-accent-dark sm:text-[26px]">
+              Catalog
+            </h1>
+
+            {!isLoading && !isError && (
+              <p className="mt-1 text-[11px] font-medium text-olive/60 sm:text-[12px]">
+                {products?.length ?? 0}{' '}
+                {(products?.length ?? 0) === 1
+                  ? 'product'
+                  : 'products'}
+              </p>
+            )}
+
+          </div>
+
+          {/* Desktop add product */}
+
+          <Link
+            to="/catalog/new"
+            className="hidden h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent-dark px-4 text-[12px] font-semibold text-white shadow-[0_3px_12px_rgba(42,35,32,0.14)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-accent-dark/95 hover:shadow-[0_6px_18px_rgba(42,35,32,0.18)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25 focus-visible:ring-offset-2 sm:inline-flex"
+          >
+            <Plus
+              size={15}
+              strokeWidth={2.2}
+            />
+
+            Add product
+          </Link>
+
+        </motion.header>
+
+        {/* ==================================================
+            CATALOG CONTENT
+        ================================================== */}
+
+        <div className="w-full min-w-0 max-w-[900px]">
+
+          {/* ==================================================
+              SEARCH
+          ================================================== */}
+
+          <motion.div
+            custom={1}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="relative mb-5"
+          >
+
+            <div className="relative flex h-11 w-full items-center overflow-hidden rounded-[14px] border border-[#E5DED5] bg-white shadow-[0_2px_10px_rgba(42,35,32,0.045)] transition-all duration-150 focus-within:border-accent-dark/25 focus-within:shadow-[0_3px_14px_rgba(42,35,32,0.075)] focus-within:ring-2 focus-within:ring-accent-dark/[0.035]">
+
+              {/* Search icon */}
+
+              <Search
+                size={16}
+                strokeWidth={1.9}
+                className="pointer-events-none absolute left-3.5 text-olive/55"
+              />
+
+              {/* Search input */}
+
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search products"
+                aria-label="Search products"
+                className="h-full w-full min-w-0 bg-transparent pl-10 pr-10 text-[14px] font-medium text-accent-dark outline-none placeholder:font-normal placeholder:text-olive/45"
+              />
+
+              {/* Clear search */}
+
+              {query.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full text-olive/55 transition-colors duration-150 hover:bg-platinum/50 hover:text-accent-dark active:scale-90"
+                >
+                  <X
+                    size={14}
+                    strokeWidth={2}
+                  />
+                </button>
+              )}
+
+            </div>
+
+            {/* Search result count */}
+
+            {query.length > 0 && !isLoading && !isError && (
+              <p className="mt-2 px-1 text-[11px] font-medium text-olive/60">
+                {filtered.length}{' '}
+                {filtered.length === 1
+                  ? 'result'
+                  : 'results'}
+              </p>
+            )}
+
+          </motion.div>
+
+          {/* ==================================================
+              STATES
+          ================================================== */}
+
+          {isLoading && <LoadingState />}
+
+          {!isLoading && isError && <ErrorState />}
+
+          {!isLoading && !isError && (
+            <CatalogList
+              categories={categories ?? []}
+              products={filtered}
+              hasQuery={query.length > 0}
+            />
           )}
+
+        </div>
+
+        {/* ==================================================
+            MOBILE FLOATING ACTION BUTTON
+        ================================================== */}
+
+        <motion.div
+          initial={{
+            opacity: 0,
+            scale: 0.8,
+          }}
+          animate={{
+            opacity: 1,
+            scale: 1,
+          }}
+          transition={{
+            duration: 0.3,
+            ease: EASE,
+            delay: 0.35,
+          }}
+          className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-5 z-20 sm:hidden"
+        >
+
+          <Link
+            to="/catalog/new"
+            aria-label="Add product"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-dark text-white shadow-[0_8px_22px_rgba(42,35,32,0.22)] ring-1 ring-white/10 transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25 focus-visible:ring-offset-2"
+          >
+            <Plus
+              size={20}
+              strokeWidth={2.2}
+            />
+          </Link>
+
         </motion.div>
 
-        {/* States */}
-        {isLoading && <LoadingState />}
-        {!isLoading && isError && <ErrorState />}
-        {!isLoading && !isError && (
-          <CatalogList
-            categories={categories ?? []}
-            products={filtered}
-            hasQuery={query.length > 0}
-          />
-        )}
       </div>
-
-      {/* Mobile FAB */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3, ease: EASE, delay: 0.35 }}
-        className="sm:hidden fixed right-5 bottom-[calc(76px+env(safe-area-inset-bottom))] z-20"
-      >
-        <Link
-          to="/catalog/new" aria-label="Add product"
-          className="w-14 h-14 rounded-full bg-accent-dark text-white flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-transform duration-150 active:scale-90"
-        >
-          <Plus size={22} strokeWidth={2.5} />
-        </Link>
-      </motion.div>
     </ScreenShell>
   );
 }
 
-/* Sub-components */
+/* ============================================================
+   LOADING STATE
+============================================================ */
 
 function LoadingState() {
   return (
-    <div className="space-y-3 animate-pulse" aria-label="Loading catalog">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="h-[60px] rounded-[16px] bg-platinum/60" />
-      ))}
+    <div
+      className="overflow-hidden rounded-[20px] border border-platinum/60 bg-white shadow-[0_3px_16px_rgba(42,35,32,0.035)]"
+      aria-label="Loading catalog"
+    >
+
+      <div className="divide-y divide-platinum/45">
+
+        {[0, 1, 2, 3].map((i) => (
+
+          <div
+            key={i}
+            className="flex min-h-[64px] animate-pulse items-center gap-3 px-4 py-3 motion-reduce:animate-none sm:px-5"
+          >
+
+            {/* Product icon placeholder */}
+
+            <div className="h-9 w-9 shrink-0 rounded-[11px] bg-platinum/55" />
+
+            {/* Product details */}
+
+            <div className="min-w-0 flex-1 space-y-2">
+
+              <div className="h-3 w-32 max-w-full rounded-full bg-platinum/60" />
+
+              <div className="h-2.5 w-20 max-w-full rounded-full bg-platinum/40" />
+
+            </div>
+
+            {/* Price placeholder */}
+
+            <div className="h-3 w-14 shrink-0 rounded-full bg-platinum/50" />
+
+          </div>
+
+        ))}
+
+      </div>
+
     </div>
   );
 }
 
+/* ============================================================
+   ERROR STATE
+============================================================ */
+
 function ErrorState() {
   return (
-    <div className="pt-16 flex flex-col items-center gap-2">
-      <p className="text-[15px] font-medium text-accent-dark">Couldn't load catalog</p>
-      <p className="text-sm text-olive">Check your connection and try again.</p>
+    <div className="flex min-h-[200px] flex-col items-center justify-center rounded-[20px] border border-platinum/60 bg-white px-5 py-8 text-center shadow-[0_3px_16px_rgba(42,35,32,0.035)]">
+
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[14px] bg-platinum/40">
+        <Package
+          size={19}
+          strokeWidth={1.7}
+          className="text-olive"
+        />
+      </div>
+
+      <p className="text-[13px] font-semibold text-accent-dark">
+        Couldn't load catalog
+      </p>
+
+      <p className="mt-1 max-w-[240px] text-[11px] leading-5 text-olive/60">
+        Check your connection and try again.
+      </p>
+
     </div>
   );
 }
+
+/* ============================================================
+   CATALOG LIST
+============================================================ */
 
 function CatalogList({
   categories,
@@ -150,58 +369,131 @@ function CatalogList({
   products: ProductListItem[];
   hasQuery: boolean;
 }) {
+
+  /* ==========================================================
+     EMPTY STATE
+  ========================================================== */
+
   if (products.length === 0) {
     return (
-      <div className="pt-16 flex flex-col items-center gap-3 text-center px-6">
-        <p className="text-[15px] font-medium text-accent-dark">
-          {hasQuery ? 'No results' : 'No products yet'}
+      <div className="flex min-h-[210px] flex-col items-center justify-center rounded-[20px] border border-platinum/60 bg-white px-5 py-8 text-center shadow-[0_3px_16px_rgba(42,35,32,0.035)]">
+
+        {/* Icon */}
+
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[14px] bg-platinum/40">
+          {hasQuery ? (
+            <Search
+              size={19}
+              strokeWidth={1.7}
+              className="text-olive"
+            />
+          ) : (
+            <Package
+              size={19}
+              strokeWidth={1.7}
+              className="text-olive"
+            />
+          )}
+        </div>
+
+        {/* Title */}
+
+        <p className="text-[13px] font-semibold text-accent-dark">
+          {hasQuery
+            ? 'No results'
+            : 'No products yet'}
         </p>
-        <p className="text-sm text-olive">
+
+        {/* Description */}
+
+        <p className="mt-1 max-w-[260px] text-[11px] leading-5 text-olive/60">
           {hasQuery
             ? 'Try a different search term.'
             : 'Add your first product to start building your catalog.'}
         </p>
+
+        {/* Add product */}
+
         {!hasQuery && (
           <Link
             to="/catalog/new"
-            className="inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] mt-1"
+            className="mt-4 inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-accent-dark px-4 text-[12px] font-semibold text-white shadow-[0_3px_10px_rgba(42,35,32,0.12)] transition-all duration-150 hover:bg-accent-dark/90 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25 focus-visible:ring-offset-2"
           >
-            <Plus size={15} strokeWidth={2.5} />
+            <Plus
+              size={14}
+              strokeWidth={2.2}
+            />
+
             Add product
           </Link>
         )}
+
       </div>
     );
   }
 
-  // When searching, show a flat list without category grouping
+  /* ==========================================================
+     SEARCH RESULTS
+  ========================================================== */
+
   if (hasQuery) {
     return (
       <motion.div
-        className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)] divide-y divide-platinum/60"
-        variants={listContainer} initial="hidden" animate="visible"
+        className="divide-y divide-platinum/45 overflow-hidden rounded-[20px] border border-platinum/60 bg-white shadow-[0_3px_16px_rgba(42,35,32,0.035)]"
+        variants={listContainer}
+        initial="hidden"
+        animate="visible"
       >
+
         {products.map((product) => (
-          <ProductRow key={product.id} product={product} />
+          <ProductRow
+            key={product.id}
+            product={product}
+          />
         ))}
+
       </motion.div>
     );
   }
 
+  /* ==========================================================
+     CATEGORY GROUPING
+  ========================================================== */
+
   const groups = categories
     .map((cat) => ({
       category: cat,
-      items: products.filter((p) => p.category_id === cat.id),
+      items: products.filter(
+        (p) => p.category_id === cat.id
+      ),
     }))
     .filter((g) => g.items.length > 0);
 
-  const uncategorized = products.filter((p) => !p.category_id);
+  const uncategorized = products.filter(
+    (p) => !p.category_id
+  );
 
   return (
-    <motion.div className="space-y-5" variants={listContainer} initial="hidden" animate="visible">
+    <motion.div
+      className="space-y-5"
+      variants={listContainer}
+      initial="hidden"
+      animate="visible"
+    >
+
+      {/* Category groups */}
+
       {groups.map(({ category, items }, gi) => (
-        <ProductGroup key={category.id} title={category.name} items={items} groupIndex={gi} />
+        <ProductGroup
+          key={category.id}
+          title={category.name}
+          items={items}
+          groupIndex={gi}
+        />
       ))}
+
+      {/* Uncategorized products */}
+
       {uncategorized.length > 0 && (
         <ProductGroup
           title="Uncategorized"
@@ -209,9 +501,14 @@ function CatalogList({
           groupIndex={groups.length}
         />
       )}
+
     </motion.div>
   );
 }
+
+/* ============================================================
+   PRODUCT GROUP
+============================================================ */
 
 function ProductGroup({
   title,
@@ -223,48 +520,145 @@ function ProductGroup({
   groupIndex: number;
 }) {
   return (
-    <motion.div
+    <motion.section
       custom={groupIndex}
       variants={fadeUp}
       initial="hidden"
       animate="visible"
     >
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
-        {title}
-      </p>
-      <div className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)] divide-y divide-platinum/60">
-        {items.map((product) => (
-          <ProductRow key={product.id} product={product} />
-        ))}
+
+      {/* Group header */}
+
+      <div className="mb-2.5 flex items-center justify-between gap-3 px-1">
+
+        <h2 className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.13em] text-olive/80">
+          {title}
+        </h2>
+
+        {/* Product count */}
+
+        <span className="shrink-0 rounded-full border border-platinum/65 bg-white/80 px-2.5 py-1 text-[10px] font-semibold tabular-nums text-olive/65">
+          {items.length}
+        </span>
+
       </div>
-    </motion.div>
+
+      {/* Grouped product list */}
+
+      <div className="divide-y divide-platinum/45 overflow-hidden rounded-[20px] border border-platinum/60 bg-white shadow-[0_3px_16px_rgba(42,35,32,0.035)]">
+
+        {items.map((product) => (
+          <ProductRow
+            key={product.id}
+            product={product}
+          />
+        ))}
+
+      </div>
+
+    </motion.section>
   );
 }
 
-function ProductRow({ product }: { product: ProductListItem }) {
+/* ============================================================
+   PRODUCT ROW
+============================================================ */
+
+function ProductRow({
+  product,
+}: {
+  product: ProductListItem;
+}) {
+
   const startingPrice = getStartingPrice(product.variants);
 
   return (
     <motion.div variants={listRow}>
+
       <Link
         to={`/catalog/${product.id}`}
-        className="flex items-center justify-between gap-3 px-5 py-3.5 min-h-[56px] transition-colors duration-150 hover:bg-platinum/20 active:bg-platinum/30"
+        className="group flex min-h-[64px] w-full min-w-0 items-center gap-3 px-3.5 py-3 transition-colors duration-150 hover:bg-platinum/[0.15] active:bg-platinum/30 focus-visible:outline-none focus-visible:bg-platinum/25 sm:gap-3.5 sm:px-5"
       >
+
+        {/* ==================================================
+            PRODUCT ICON
+        ================================================== */}
+
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#F5F1EC] text-accent-dark transition-colors duration-150 group-hover:bg-[#EFE9E1]">
+
+          <Package
+            size={16}
+            strokeWidth={1.7}
+          />
+
+        </div>
+
+        {/* ==================================================
+            PRODUCT INFORMATION
+        ================================================== */}
+
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-accent-dark truncate leading-snug">
+
+          <p className="truncate text-[13px] font-semibold leading-5 tracking-[-0.01em] text-accent-dark sm:text-[14px]">
             {product.name}
           </p>
+
           {!product.is_active && (
-            <p className="text-[12px] text-olive">Inactive</p>
+
+            <div className="mt-1 flex items-center">
+
+              <span className="inline-flex items-center gap-1 rounded-full bg-platinum/55 px-2 py-0.5 text-[10px] font-medium text-olive">
+
+                <span className="h-1 w-1 rounded-full bg-olive/50" />
+
+                Inactive
+
+              </span>
+
+            </div>
+
           )}
+
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <p className="text-sm text-olive">
-            {startingPrice !== null ? `From ${formatPrice(startingPrice)}` : 'No price'}
-          </p>
-          <ChevronRight size={15} className="text-olive/50" />
+
+        {/* ==================================================
+            PRICE + NAVIGATION
+        ================================================== */}
+
+        <div className="flex min-w-0 max-w-[48%] shrink-0 items-center gap-2 sm:max-w-none sm:gap-3">
+
+          {/* Price */}
+
+          <div className="min-w-0 text-right">
+
+            {startingPrice !== null ? (
+
+              <p className="max-w-full truncate whitespace-nowrap text-[12px] font-semibold tracking-[-0.01em] tabular-nums text-accent-dark sm:text-[13px]">
+                From {formatPrice(startingPrice)}
+              </p>
+
+            ) : (
+
+              <p className="text-[11px] font-medium text-olive/50">
+                No price
+              </p>
+
+            )}
+
+          </div>
+
+          {/* Navigation chevron */}
+
+          <ChevronRight
+            size={15}
+            strokeWidth={1.9}
+            className="shrink-0 text-olive/35 transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-olive/60"
+          />
+
         </div>
+
       </Link>
+
     </motion.div>
   );
 }
