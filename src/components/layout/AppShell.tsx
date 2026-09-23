@@ -3,67 +3,122 @@
 import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+
 import { Sidebar } from './SideBar';
 import { TabBar } from './TabBar';
+
 import { useAuth } from '../../lib/auth-context';
 import { useUnreadMessageCount } from '../../hooks/useUnreadMessageCount';
 import { NAV_ITEMS } from '../../config/navigation';
 
+const EASE = [0.23, 1, 0.32, 1] as const;
+
 export function AppShell() {
   const { organizationId } = useAuth();
-  const unreadMessageCount = useUnreadMessageCount(organizationId);
+
+  const unreadMessageCount =
+    useUnreadMessageCount(organizationId);
+
   const location = useLocation();
+
   const mainRef = useRef<HTMLElement>(null);
 
-  // The window-level ScrollToTop in App.tsx doesn't reach this —
-  // on desktop, <main> below scrolls internally (md:overflow-y-auto)
-  // while its parent is md:overflow-hidden, so the window itself
-  // never moves and window.scrollTo() would be a no-op here. This
-  // resets the ACTUAL scrolling element for these routes instead.
-  // On mobile this is redundant with the window-level reset (there's
-  // no separate inner scroll container below the md breakpoint) —
-  // harmless overlap, not a conflict.
+  /* ============================================================
+     SCROLL POSITION
+  ============================================================ */
+
   useEffect(() => {
-    mainRef.current?.scrollTo(0, 0);
+    // Desktop uses an independently scrolling main container.
+    // Reset it when navigating to another screen.
+    mainRef.current?.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'instant',
+    });
   }, [location.pathname]);
 
-  // Single place where NAV_ITEMS gets its real badge data merged in —
-  // Sidebar and TabBar just render whatever array they're handed.
+  /* ============================================================
+     NAVIGATION BADGES
+  ============================================================ */
+
   const navItems = NAV_ITEMS.map((item) =>
     item.to === '/messages'
-      ? { ...item, badge: unreadMessageCount > 0 ? unreadMessageCount : undefined }
+      ? {
+          ...item,
+          badge:
+            unreadMessageCount > 0
+              ? unreadMessageCount
+              : undefined,
+        }
       : item
   );
 
+  /* ============================================================
+     APPLICATION LAYOUT
+  ============================================================ */
+
   return (
-    <div className="min-h-[100dvh] md:h-dvh bg-platinum/30 md:flex md:overflow-hidden">
+    <div
+      className="
+        min-h-[100dvh]
+        bg-[#F6EEE2]
+
+        md:flex
+        md:h-dvh
+        md:overflow-hidden
+      "
+    >
+      {/* ==================================================
+          DESKTOP SIDEBAR
+      ================================================== */}
+
       <Sidebar navItems={navItems} />
+
+      {/* ==================================================
+          MAIN CONTENT
+      ================================================== */}
+
       <main
         ref={mainRef}
-        className="flex-1 min-w-0 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0 md:h-dvh md:overflow-y-auto"
+        className="
+          min-w-0
+          flex-1
+
+          pb-[calc(64px+env(safe-area-inset-bottom))]
+
+          md:h-dvh
+          md:overflow-y-auto
+          md:pb-0
+        "
       >
-        {/*
-          Opacity-only route transition — deliberately NOT animating
-          y/scale here. Framer Motion drives those via CSS `transform`,
-          and ANY transform on an ancestor (even a resting
-          translateY(0)) creates a new containing block for
-          `position: fixed` descendants. ConversationDetailScreen
-          depends on `fixed inset-0` to fill the viewport; a transform
-          on this wrapper would silently break that screen's layout
-          every time it mounted. Opacity carries none of that risk.
-        */}
+        {/* ==================================================
+            PAGE TRANSITIONS
+
+            Opacity only: avoid transforms on this wrapper
+            so fixed-position conversation screens continue
+            to fill the viewport correctly.
+        ================================================== */}
+
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+            transition={{
+              duration: 0.16,
+              ease: EASE,
+            }}
           >
             <Outlet />
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* ==================================================
+          MOBILE TAB BAR
+      ================================================== */}
+
       <TabBar navItems={navItems} />
     </div>
   );
