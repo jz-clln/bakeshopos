@@ -1,7 +1,10 @@
 // File: app/src/screens/SettingsScreen.tsx
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
+
 import {
   Instagram,
   Facebook,
@@ -13,11 +16,22 @@ import {
   Languages,
   Gauge,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
-import { getFacebookConnection, startFacebookConnect, disconnectFacebook, type FacebookConnection } from '../api/facebook';
-import { fetchShopIdentity, type ShopIdentity } from '../api/shopProfile';
+
+import {
+  getFacebookConnection,
+  startFacebookConnect,
+  disconnectFacebook,
+  type FacebookConnection,
+} from '../api/facebook';
+
+import {
+  fetchShopIdentity,
+  type ShopIdentity,
+} from '../api/shopProfile';
+
 import {
   fetchAiLanguage,
   setAiLanguage,
@@ -27,39 +41,92 @@ import {
   type AiTokenUsage,
   type GuardrailEvent,
 } from '../api/aiSettings';
+
 import { UsageMeter } from '../components/settings/UsageMeter';
 import { GuardrailActivity } from '../components/settings/GuardrailActivity';
+
+/* ============================================================
+   DESIGN & MOTION
+============================================================ */
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: {
+    opacity: 0,
+    y: 8,
+  },
+
   visible: (i: number) => ({
-    opacity: 1, y: 0,
-    transition: { duration: 0.26, ease: EASE, delay: i * 0.07 },
+    opacity: 1,
+    y: 0,
+
+    transition: {
+      duration: 0.26,
+      ease: EASE,
+      delay: i * 0.05,
+    },
   }),
 };
+
+/* ============================================================
+   SHARED STYLES
+============================================================ */
+
+const CARD_STYLE =
+  'overflow-hidden rounded-[20px] border border-platinum/60 bg-white shadow-[0_3px_16px_rgba(42,35,32,0.035)]';
+
+const SECTION_TITLE =
+  'mb-2.5 px-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-olive/75';
+
+const ICON_STYLE =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#F2EDE6] text-accent-dark';
+
+const SECONDARY_BUTTON =
+  'inline-flex min-h-9 items-center justify-center rounded-full border border-[#E5DED5] bg-white px-3 text-[11px] font-semibold text-accent-dark transition-all duration-150 hover:bg-[#F7F4F0] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/20';
+
+/* ============================================================
+   SETTINGS SCREEN
+============================================================ */
 
 export function SettingsScreen() {
   const { signOut, role, session, organizationId } = useAuth() as {
     signOut?: () => void;
     role?: string;
-    session: { user?: { user_metadata?: { organization_name?: string } } } | null;
+    session: {
+      user?: {
+        user_metadata?: {
+          organization_name?: string;
+        };
+      };
+    } | null;
     organizationId?: string;
   };
 
-  const [identity, setIdentity] = useState<ShopIdentity | null>(null);
+  /* ==========================================================
+     SHOP IDENTITY
+  ========================================================== */
+
+  const [identity, setIdentity] = useState<ShopIdentity | null>(
+    null
+  );
 
   useEffect(() => {
     if (!organizationId) return;
+
     let cancelled = false;
 
     fetchShopIdentity(organizationId)
       .then((data) => {
-        if (!cancelled) setIdentity(data);
+        if (!cancelled) {
+          setIdentity(data);
+        }
       })
       .catch((err) => {
-        console.error('Failed to load shop identity:', err);
+        console.error(
+          'Failed to load shop identity:',
+          err
+        );
       });
 
     return () => {
@@ -71,24 +138,49 @@ export function SettingsScreen() {
     identity?.name?.trim() ||
     session?.user?.user_metadata?.organization_name?.trim() ||
     'Your Shop';
+
   const logoUrl = identity?.logo_url ?? null;
 
-  const [fbConnection, setFbConnection] = useState<FacebookConnection | null>(null);
+  /* ==========================================================
+     FACEBOOK CONNECTION
+  ========================================================== */
+
+  const [fbConnection, setFbConnection] =
+    useState<FacebookConnection | null>(null);
+
   const [loadingFb, setLoadingFb] = useState(true);
+
   const [fbError, setFbError] = useState<string | null>(null);
+
   const [connectingFb, setConnectingFb] = useState(false);
+
   const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
     if (!organizationId) return;
+
     let cancelled = false;
 
-    getFacebookConnection(organizationId).then((conn) => {
-      if (!cancelled) {
-        setFbConnection(conn);
-        setLoadingFb(false);
-      }
-    });
+    getFacebookConnection(organizationId)
+      .then((conn) => {
+        if (!cancelled) {
+          setFbConnection(conn);
+          setLoadingFb(false);
+        }
+      })
+      .catch((err) => {
+        console.error(
+          'Failed to load Facebook connection:',
+          err
+        );
+
+        if (!cancelled) {
+          setFbError(
+            'Could not check the connection. Please try again.'
+          );
+          setLoadingFb(false);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -96,62 +188,97 @@ export function SettingsScreen() {
   }, [organizationId]);
 
   async function handleConnectFacebook() {
-    // Guards against the exact bug being fixed here: a slow network
-    // means the redirect doesn't fire immediately, and with nothing
-    // visually changing, a repeat tap used to fire a second (or
-    // third) startFacebookConnect() call before the first one ever
-    // navigated away.
-    if (!organizationId || connectingFb) return;
+    if (
+      !organizationId ||
+      connectingFb ||
+      disconnecting
+    ) {
+      return;
+    }
+
     setFbError(null);
     setConnectingFb(true);
+
     try {
       await startFacebookConnect(organizationId);
-      // No setConnectingFb(false) on success — startFacebookConnect()
-      // ends in a full-page redirect, so this component is about to
-      // unmount anyway. Leaving the button disabled/showing
-      // "Connecting…" right up until that navigation happens is the
-      // correct state, not a bug.
+
+      // The connection flow redirects away from this page.
+      // Keep the button disabled until that navigation occurs.
     } catch (err) {
-      console.error(err);
-      setFbError('Could not start Facebook connection. Please try again.');
+      console.error(
+        'Failed to start Facebook connection:',
+        err
+      );
+
+      setFbError(
+        'Could not start Facebook connection. Please try again.'
+      );
+
       setConnectingFb(false);
     }
   }
 
   async function handleDisconnectFacebook() {
-    if (!organizationId) return;
+    if (
+      !organizationId ||
+      disconnecting ||
+      connectingFb
+    ) {
+      return;
+    }
+
     setDisconnecting(true);
     setFbError(null);
+
     try {
       await disconnectFacebook(organizationId);
       setFbConnection(null);
     } catch (err) {
-      console.error('Failed to disconnect Facebook:', err);
-      setFbError('Could not disconnect. Please try again.');
+      console.error(
+        'Failed to disconnect Facebook:',
+        err
+      );
+
+      setFbError(
+        'Could not disconnect. Please try again.'
+      );
     } finally {
       setDisconnecting(false);
     }
   }
 
+  const isFbConnected =
+    fbConnection?.status === 'connected';
+
   const fbDescription = loadingFb
-    ? 'Checking…'
+    ? 'Checking connection…'
     : connectingFb
-    ? 'Connecting…'
-    : fbConnection?.status === 'connected'
-    ? `Connected | ${fbConnection.pageName}`
-    : fbConnection?.status === 'needs_reconnect'
-    ? 'Needs reconnecting'
-    : 'Not connected';
+      ? 'Connecting…'
+      : fbConnection?.status === 'connected'
+        ? `Connected · ${fbConnection.pageName}`
+        : fbConnection?.status === 'needs_reconnect'
+          ? 'Needs reconnecting'
+          : 'Not connected';
 
-  const isFbConnected = fbConnection?.status === 'connected';
+  /* ==========================================================
+     AI LANGUAGE
+  ========================================================== */
 
-  const [aiLanguage, setAiLanguageState] = useState<AiLanguage>('en');
-  const [aiLanguageLoaded, setAiLanguageLoaded] = useState(false);
-  const [savingAiLanguage, setSavingAiLanguage] = useState(false);
-  const [aiLanguageError, setAiLanguageError] = useState<string | null>(null);
+  const [aiLanguage, setAiLanguageState] =
+    useState<AiLanguage>('en');
+
+  const [aiLanguageLoaded, setAiLanguageLoaded] =
+    useState(false);
+
+  const [savingAiLanguage, setSavingAiLanguage] =
+    useState(false);
+
+  const [aiLanguageError, setAiLanguageError] =
+    useState<string | null>(null);
 
   useEffect(() => {
     if (!organizationId) return;
+
     let cancelled = false;
 
     fetchAiLanguage(organizationId)
@@ -162,8 +289,14 @@ export function SettingsScreen() {
         }
       })
       .catch((err) => {
-        console.error('Failed to load AI language:', err);
-        if (!cancelled) setAiLanguageLoaded(true);
+        console.error(
+          'Failed to load AI language:',
+          err
+        );
+
+        if (!cancelled) {
+          setAiLanguageLoaded(true);
+        }
       });
 
     return () => {
@@ -172,38 +305,70 @@ export function SettingsScreen() {
   }, [organizationId]);
 
   async function handleSetAiLanguage(lang: AiLanguage) {
-    if (!organizationId || savingAiLanguage || lang === aiLanguage) return;
+    if (
+      !organizationId ||
+      savingAiLanguage ||
+      lang === aiLanguage
+    ) {
+      return;
+    }
+
     const previous = aiLanguage;
+
     setAiLanguageState(lang);
     setSavingAiLanguage(true);
     setAiLanguageError(null);
+
     try {
       await setAiLanguage(organizationId, lang);
     } catch (err) {
-      console.error('Failed to update AI language:', err);
+      console.error(
+        'Failed to update AI language:',
+        err
+      );
+
       setAiLanguageState(previous);
-      setAiLanguageError('Could not update. Please try again.');
+
+      setAiLanguageError(
+        'Could not update. Please try again.'
+      );
     } finally {
       setSavingAiLanguage(false);
     }
   }
 
-  // AI token usage — separate loading state from the language toggle
-  // above, since one loading indicator failing shouldn't block the other.
-  const [tokenUsage, setTokenUsage] = useState<AiTokenUsage | null>(null);
-  const [tokenUsageError, setTokenUsageError] = useState<string | null>(null);
+  /* ==========================================================
+     AI TOKEN USAGE
+  ========================================================== */
+
+  const [tokenUsage, setTokenUsage] =
+    useState<AiTokenUsage | null>(null);
+
+  const [tokenUsageError, setTokenUsageError] =
+    useState<string | null>(null);
 
   useEffect(() => {
     if (!organizationId) return;
+
     let cancelled = false;
 
     fetchAiTokenUsage(organizationId)
       .then((usage) => {
-        if (!cancelled) setTokenUsage(usage);
+        if (!cancelled) {
+          setTokenUsage(usage);
+        }
       })
       .catch((err) => {
-        console.error('Failed to load AI token usage:', err);
-        if (!cancelled) setTokenUsageError('Could not load usage.');
+        console.error(
+          'Failed to load AI token usage:',
+          err
+        );
+
+        if (!cancelled) {
+          setTokenUsageError(
+            'Could not load usage.'
+          );
+        }
       });
 
     return () => {
@@ -211,23 +376,38 @@ export function SettingsScreen() {
     };
   }, [organizationId]);
 
-  // Recent guardrail activity — again its own loading/error state, so
-  // a failure here never blocks the token usage numbers above it from
-  // showing, and vice versa.
-  const [guardrailEvents, setGuardrailEvents] = useState<GuardrailEvent[] | null>(null);
-  const [guardrailError, setGuardrailError] = useState<string | null>(null);
+  /* ==========================================================
+     GUARDRAIL ACTIVITY
+  ========================================================== */
+
+  const [guardrailEvents, setGuardrailEvents] =
+    useState<GuardrailEvent[] | null>(null);
+
+  const [guardrailError, setGuardrailError] =
+    useState<string | null>(null);
 
   useEffect(() => {
     if (!organizationId) return;
+
     let cancelled = false;
 
     fetchGuardrailEvents(organizationId)
       .then((events) => {
-        if (!cancelled) setGuardrailEvents(events);
+        if (!cancelled) {
+          setGuardrailEvents(events);
+        }
       })
       .catch((err) => {
-        console.error('Failed to load guardrail activity:', err);
-        if (!cancelled) setGuardrailError('Could not load recent activity.');
+        console.error(
+          'Failed to load guardrail activity:',
+          err
+        );
+
+        if (!cancelled) {
+          setGuardrailError(
+            'Could not load recent activity.'
+          );
+        }
       });
 
     return () => {
@@ -235,315 +415,564 @@ export function SettingsScreen() {
     };
   }, [organizationId]);
 
+  /* ==========================================================
+     VIEW
+  ========================================================== */
+
   return (
     <ScreenShell>
-      {/* Header */}
-      <motion.h1
-        custom={0} variants={fadeUp} initial="hidden" animate="visible"
-        className="font-display text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark mb-6"
-      >
-        Settings
-      </motion.h1>
+      <div className="mx-auto w-full min-w-0 max-w-[1200px] pb-6">
 
-      {/* Shop identity card */}
-        <Link
-          to="/settings/shop"
-          className="block mb-6 group"
-          aria-label={`Open ${shopName} shop profile`}
+        {/* ==================================================
+            HEADER
+        ================================================== */}
+
+        <motion.header
+          custom={0}
+          variants={fadeUp}
+          initial="hidden"
+          animate="visible"
+          className="mb-5"
         >
+          <h1 className="font-display text-[23px] font-bold leading-tight tracking-[-0.035em] text-accent-dark sm:text-[26px]">
+            Settings
+          </h1>
+
+          <p className="mt-1 text-[11px] font-medium text-olive/60 sm:text-[12px]">
+            Manage your shop and preferences
+          </p>
+        </motion.header>
+
+        <div className="w-full min-w-0 max-w-[900px]">
+
+          {/* ==================================================
+              SHOP PROFILE
+          ================================================== */}
+
           <motion.div
             custom={1}
             variants={fadeUp}
             initial="hidden"
             animate="visible"
-            className="
-              relative overflow-hidden
-              rounded-[22px]
-              bg-[#2A2320]
-              border border-white/[0.08]
-              px-5 py-[18px]
-              flex items-center gap-4
-              shadow-[0_8px_30px_rgba(42,35,32,0.14)]
-              transition-all duration-200 ease-out
-              md:group-hover:-translate-y-0.5
-              md:group-hover:shadow-[0_12px_36px_rgba(42,35,32,0.18)]
-              active:scale-[0.99]
-            "
+            className="mb-5"
           >
-            {/* Logo */}
-            <div
-              className="
-                relative
-                w-[54px] h-[54px]
-                rounded-[16px]
-                bg-white/[0.08]
-                border border-white/[0.10]
-                flex items-center justify-center
-                shrink-0 overflow-hidden
-                shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]
-              "
+            <Link
+              to="/settings/shop"
+              aria-label={`Open ${shopName} shop profile`}
+              className="group block rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25 focus-visible:ring-offset-2"
             >
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt={`${shopName} logo`}
-                  className="w-full h-full object-cover"
+              <div className="relative flex min-w-0 items-center gap-3 overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#2A2320] px-4 py-4 shadow-[0_6px_22px_rgba(42,35,32,0.14)] transition-shadow duration-200 hover:shadow-[0_8px_28px_rgba(42,35,32,0.18)] sm:gap-4 sm:px-5">
+
+                {/* Subtle decorative highlight */}
+
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-white/[0.025] blur-2xl"
                 />
-              ) : (
-                <span className="text-[20px] font-display font-semibold text-white">
-                  {shopName.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
 
-            {/* Identity */}
-            <div className="min-w-0 flex-1">
-              <p
-                className="
-                  mb-1
-                  text-[10px]
-                  font-semibold
-                  uppercase
-                  tracking-[0.16em]
-                  text-white/40
-                "
-              >
-                Shop profile
-              </p>
+                {/* Shop logo */}
 
-              <p
-                className="
-                  truncate
-                  font-display
-                  text-[18px]
-                  font-semibold
-                  leading-tight
-                  tracking-[-0.01em]
-                  text-white
-                "
-              >
-                {shopName}
-              </p>
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-white/10 bg-white/[0.08] sm:h-[52px] sm:w-[52px]">
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt={`${shopName} logo`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="font-display text-[19px] font-semibold text-white">
+                      {shopName.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
 
-              {role && (
-                <p className="mt-1 text-[12px] capitalize text-white/50">
-                  {role}
-                </p>
-              )}
-            </div>
+                {/* Shop information */}
 
-            {/* Navigation */}
-            <div
-              className="
-                w-9 h-9
-                rounded-full
-                border border-white/[0.08]
-                bg-white/[0.05]
-                flex items-center justify-center
-                shrink-0
-                text-white/45
-                transition-all duration-200
-                group-hover:bg-white/[0.10]
-                group-hover:text-white/80
-                group-hover:border-white/[0.12]
-              "
-            >
-              <ChevronRight size={17} strokeWidth={1.8} />
-            </div>
+                <div className="relative min-w-0 flex-1">
+
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-white/45">
+                    Shop profile
+                  </p>
+
+                  <p className="truncate font-display text-[16px] font-semibold leading-tight tracking-[-0.02em] text-white sm:text-[18px]">
+                    {shopName}
+                  </p>
+
+                  {role && (
+                    <p className="mt-1 text-[11px] capitalize text-white/55">
+                      {role}
+                    </p>
+                  )}
+
+                </div>
+
+                {/* Navigation */}
+
+                <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-white/65 transition-all duration-150 group-hover:bg-white/[0.12] group-hover:text-white">
+                  <ChevronRight
+                    size={17}
+                    strokeWidth={1.8}
+                  />
+                </div>
+
+              </div>
+            </Link>
           </motion.div>
-        </Link>
 
-      {/* Channels */}
-      <motion.section custom={2} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
-          Sales channels
-        </p>
-        <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
-          <SettingsRow
-            icon={<Instagram size={17} className="text-accent-dark" />}
-            label="Instagram"
-            description="Coming soon"
-            disabled
-          />
+          {/* ==================================================
+              SALES CHANNELS
+          ================================================== */}
 
-          {isFbConnected ? (
-            <div className="px-5 py-3">
-              <div className="flex items-center gap-4 min-h-[40px]">
-                <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
-                  <Facebook size={17} className="text-accent-dark" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[15px] font-medium text-accent-dark">Facebook & Messenger</p>
-                  <p className="text-[13px] text-olive">{fbError ?? fbDescription}</p>
-                </div>
-              </div>
-              <div className="flex gap-3 mt-2 pl-12">
-                <button
-                  onClick={handleConnectFacebook}
-                  disabled={connectingFb}
-                  className="text-[13px] font-semibold text-accent-dark disabled:opacity-50"
-                >
-                  {connectingFb ? 'Connecting…' : 'Switch Page'}
-                </button>
-                <button
-                  onClick={handleDisconnectFacebook}
-                  disabled={disconnecting || connectingFb}
-                  className="text-[13px] font-semibold text-red-500 disabled:opacity-50"
-                >
-                  {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <SettingsRow
-              icon={<Facebook size={17} className="text-accent-dark" />}
-              label="Facebook & Messenger"
-              description={fbError ?? fbDescription}
-              onClick={handleConnectFacebook}
-              disabled={connectingFb}
-            />
-          )}
-        </div>
-      </motion.section>
+          <motion.section
+            custom={2}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="mb-5"
+          >
+            <h2 className={SECTION_TITLE}>
+              Sales channels
+            </h2>
 
-      {/* AI assistant language */}
-      <motion.section custom={3} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
-          AI assistant
-        </p>
-        <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4">
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
-              <Languages size={17} className="text-accent-dark" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-medium text-accent-dark">Reply language</p>
-              <p className="text-[13px] text-olive">
-                {aiLanguageError ?? 'Your AI assistant replies to customers in this language.'}
-              </p>
-            </div>
-          </div>
+            <div className={`${CARD_STYLE} divide-y divide-platinum/45`}>
 
-          {!aiLanguageLoaded ? (
-            <div className="h-10 rounded-full bg-platinum/60 animate-pulse" aria-hidden="true" />
-          ) : (
-            <div className="grid grid-cols-2 gap-1 bg-platinum/60 rounded-full p-1">
-              {(['en', 'fil'] as const).map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => handleSetAiLanguage(lang)}
-                  disabled={savingAiLanguage}
-                  aria-pressed={aiLanguage === lang}
-                  className={`h-10 rounded-full text-[13px] font-semibold transition-all duration-150 disabled:opacity-60 ${
-                    aiLanguage === lang
-                      ? 'bg-white text-accent-dark shadow-[0_1px_3px_rgba(0,0,0,0.12)]'
-                      : 'text-olive active:scale-[0.98]'
-                  }`}
-                >
-                  {lang === 'en' ? 'English' : 'Filipino'}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </motion.section>
+              {/* Instagram */}
 
-      {/* AI usage */}
-      <motion.section custom={4} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
-          AI usage
-        </p>
-        <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
-              <Gauge size={17} className="text-accent-dark" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-medium text-accent-dark">Token usage</p>
-              <p className="text-[13px] text-olive">
-                {tokenUsageError ?? 'How much your AI assistant has processed.'}
-              </p>
-            </div>
-          </div>
-
-          {tokenUsage === null && !tokenUsageError ? (
-            <div className="space-y-3">
-              <div className="h-8 rounded-[10px] bg-platinum/60 animate-pulse" aria-hidden="true" />
-              <div className="h-4 rounded-[6px] bg-platinum/50 w-1/2 animate-pulse" aria-hidden="true" />
-            </div>
-          ) : tokenUsage ? (
-            <div className="space-y-4">
-              <UsageMeter
-                label="This month"
-                used={tokenUsage.tokensThisMonth}
-                limit={tokenUsage.monthlyLimit}
+              <SettingsRow
+                icon={<Instagram size={17} strokeWidth={1.8} />}
+                label="Instagram"
+                description="Coming soon"
+                disabled
               />
-              <div className="flex items-center justify-between pt-3 border-t border-platinum/60">
-                <p className="text-[13px] text-olive">This week</p>
-                <p className="text-[13px] font-semibold text-accent-dark tabular-nums">
-                  {tokenUsage.tokensThisWeek.toLocaleString()} tokens
-                </p>
-              </div>
+
+              {/* Facebook & Messenger */}
+
+              {isFbConnected ? (
+
+                <div className="px-4 py-3.5 sm:px-5">
+
+                  <div className="flex min-w-0 items-center gap-3">
+
+                    <div className={ICON_STYLE}>
+                      <Facebook
+                        size={17}
+                        strokeWidth={1.8}
+                      />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+
+                        <p className="text-[13px] font-semibold leading-5 text-accent-dark sm:text-[14px]">
+                          Facebook & Messenger
+                        </p>
+
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          Connected
+                        </span>
+
+                      </div>
+
+                      <p className={`mt-0.5 break-words text-[11px] leading-4 sm:text-[12px] ${
+                        fbError
+                          ? 'text-rose-600'
+                          : 'text-olive/65'
+                      }`}>
+                        {fbError ?? fbDescription}
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                  {/* Connection actions */}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2 pl-12">
+
+                    <button
+                      type="button"
+                      onClick={handleConnectFacebook}
+                      disabled={connectingFb || disconnecting}
+                      className={SECONDARY_BUTTON}
+                    >
+                      {connectingFb
+                        ? 'Connecting…'
+                        : 'Switch Page'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDisconnectFacebook}
+                      disabled={disconnecting || connectingFb}
+                      className="inline-flex min-h-9 items-center justify-center rounded-full border border-rose-100 bg-rose-50/65 px-3 text-[11px] font-semibold text-rose-600 transition-colors duration-150 hover:bg-rose-100/70 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                    >
+                      {disconnecting
+                        ? 'Disconnecting…'
+                        : 'Disconnect'}
+                    </button>
+
+                  </div>
+
+                </div>
+
+              ) : (
+
+                <SettingsRow
+                  icon={<Facebook size={17} strokeWidth={1.8} />}
+                  label="Facebook & Messenger"
+                  description={fbError ?? fbDescription}
+                  onClick={handleConnectFacebook}
+                  disabled={connectingFb || loadingFb}
+                  status={
+                    fbConnection?.status === 'needs_reconnect'
+                      ? 'Reconnect'
+                      : undefined
+                  }
+                />
+
+              )}
+
             </div>
-          ) : null}
+          </motion.section>
 
-          {/* Recent guardrail activity — separated from the token
-              numbers above by its own divider, since it's a distinct
-              kind of information (what happened) rather than another
-              usage statistic (how much). */}
-          <div className="mt-4 pt-4 border-t border-platinum/60">
-            <p className="text-[13px] font-medium text-accent-dark mb-2">Recent activity</p>
-            {guardrailEvents === null && !guardrailError ? (
-              <div className="space-y-2">
-                <div className="h-10 rounded-[10px] bg-platinum/60 animate-pulse" aria-hidden="true" />
-                <div className="h-10 rounded-[10px] bg-platinum/50 animate-pulse" aria-hidden="true" />
+          {/* ==================================================
+              AI ASSISTANT
+          ================================================== */}
+
+          <motion.section
+            custom={3}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="mb-5"
+          >
+            <h2 className={SECTION_TITLE}>
+              AI assistant
+            </h2>
+
+            <div className={`${CARD_STYLE} px-4 py-4 sm:px-5`}>
+
+              {/* Language information */}
+
+              <div className="flex min-w-0 items-center gap-3">
+
+                <div className={ICON_STYLE}>
+                  <Languages
+                    size={17}
+                    strokeWidth={1.8}
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1">
+
+                  <p className="text-[13px] font-semibold leading-5 text-accent-dark sm:text-[14px]">
+                    Reply language
+                  </p>
+
+                  <p className={`mt-0.5 text-[11px] leading-4 sm:text-[12px] ${
+                    aiLanguageError
+                      ? 'text-rose-600'
+                      : 'text-olive/65'
+                  }`}>
+                    {aiLanguageError ??
+                      'Choose the language your AI uses when replying to customers.'}
+                  </p>
+
+                </div>
+
               </div>
-            ) : guardrailError ? (
-              <p className="text-[13px] text-olive">{guardrailError}</p>
-            ) : (
-              <GuardrailActivity events={guardrailEvents ?? []} />
-            )}
-          </div>
-        </div>
-      </motion.section>
 
-      {/* General settings */}
-      <motion.section custom={5} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
-          General
-        </p>
-        <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden divide-y divide-platinum/60">
-          <SettingsRow
-            icon={<Store size={17} className="text-accent-dark" />}
-            label="Shop details"
-            to="/settings/shop"
-          />
-          <SettingsRow
-            icon={<Bell size={17} className="text-accent-dark" />}
-            label="Notifications"
-            to="/settings/notifications"
-          />
-          <SettingsRow
-            icon={<ShieldCheck size={17} className="text-accent-dark" />}
-            label="Privacy & security"
-            to="/settings/privacy"
-          />
-        </div>
-      </motion.section>
+              {/* Language segmented control */}
 
-      {/* Sign out */}
-      <motion.div custom={6} variants={fadeUp} initial="hidden" animate="visible">
-        <button
-          onClick={() => signOut?.()}
-          className="w-full flex items-center justify-center gap-2 min-h-[52px] rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-red-500 text-[15px] font-semibold transition-colors duration-150 hover:bg-red-50 active:scale-[0.98]"
-        >
-          <LogOut size={17} strokeWidth={2} />
-          Sign out
-        </button>
-      </motion.div>
+              <div className="mt-4">
+
+                {!aiLanguageLoaded ? (
+
+                  <div
+                    aria-hidden="true"
+                    className="h-11 animate-pulse rounded-[14px] bg-platinum/45 motion-reduce:animate-none"
+                  />
+
+                ) : (
+
+                  <div className="grid grid-cols-2 gap-1 rounded-[14px] border border-platinum/45 bg-[#F2EDE6]/75 p-1">
+
+                    {(['en', 'fil'] as const).map((lang) => {
+                      const selected =
+                        aiLanguage === lang;
+
+                      return (
+
+                        <button
+                          key={lang}
+                          type="button"
+                          onClick={() =>
+                            handleSetAiLanguage(lang)
+                          }
+                          disabled={savingAiLanguage}
+                          aria-pressed={selected}
+                          className={`relative flex h-9 items-center justify-center rounded-[10px] text-[12px] font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25 ${
+                            selected
+                              ? 'text-accent-dark'
+                              : 'text-olive/70 hover:text-accent-dark'
+                          }`}
+                        >
+
+                          {selected && (
+
+                            <motion.span
+                              layoutId="selectedAiLanguage"
+                              className="absolute inset-0 rounded-[10px] border border-platinum/40 bg-white shadow-[0_2px_6px_rgba(42,35,32,0.075)]"
+                              transition={{
+                                type: 'spring',
+                                stiffness: 500,
+                                damping: 35,
+                              }}
+                            />
+
+                          )}
+
+                          <span className="relative z-10">
+                            {lang === 'en'
+                              ? 'English'
+                              : 'Filipino'}
+                          </span>
+
+                        </button>
+
+                      );
+                    })}
+
+                  </div>
+
+                )}
+
+              </div>
+
+            </div>
+          </motion.section>
+
+          {/* ==================================================
+              AI USAGE
+          ================================================== */}
+
+          <motion.section
+            custom={4}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="mb-5"
+          >
+            <h2 className={SECTION_TITLE}>
+              AI usage
+            </h2>
+
+            <div className={`${CARD_STYLE} px-4 py-4 sm:px-5`}>
+
+              {/* Usage heading */}
+
+              <div className="flex min-w-0 items-center gap-3">
+
+                <div className={ICON_STYLE}>
+                  <Gauge
+                    size={17}
+                    strokeWidth={1.8}
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1">
+
+                  <p className="text-[13px] font-semibold leading-5 text-accent-dark sm:text-[14px]">
+                    Token usage
+                  </p>
+
+                  <p className={`mt-0.5 text-[11px] leading-4 sm:text-[12px] ${
+                    tokenUsageError
+                      ? 'text-rose-600'
+                      : 'text-olive/65'
+                  }`}>
+                    {tokenUsageError ??
+                      'How much your AI assistant has processed.'}
+                  </p>
+
+                </div>
+
+              </div>
+
+              {/* Usage information */}
+
+              <div className="mt-4">
+
+                {tokenUsage === null && !tokenUsageError ? (
+
+                  <div
+                    aria-hidden="true"
+                    className="space-y-3 motion-reduce:animate-none"
+                  >
+                    <div className="h-8 animate-pulse rounded-[10px] bg-platinum/50 motion-reduce:animate-none" />
+
+                    <div className="h-3 w-1/2 animate-pulse rounded-full bg-platinum/35 motion-reduce:animate-none" />
+                  </div>
+
+                ) : tokenUsage ? (
+
+                  <div className="space-y-4">
+
+                    <UsageMeter
+                      label="This month"
+                      used={tokenUsage.tokensThisMonth}
+                      limit={tokenUsage.monthlyLimit}
+                    />
+
+                    <div className="flex min-w-0 items-center justify-between gap-3 border-t border-platinum/50 pt-3">
+
+                      <p className="shrink-0 text-[11px] font-medium text-olive/65 sm:text-[12px]">
+                        This week
+                      </p>
+
+                      <p className="min-w-0 text-right text-[11px] font-semibold tabular-nums text-accent-dark sm:text-[12px]">
+                        {tokenUsage.tokensThisWeek.toLocaleString()}{' '}
+                        tokens
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                ) : null}
+
+              </div>
+
+              {/* Recent activity */}
+
+              <div className="mt-4 border-t border-platinum/50 pt-4">
+
+                <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+
+                  <div className="flex min-w-0 items-center gap-2">
+
+                    <ShieldCheck
+                      size={15}
+                      strokeWidth={1.8}
+                      className="shrink-0 text-olive/70"
+                    />
+
+                    <h3 className="text-[12px] font-semibold text-accent-dark sm:text-[13px]">
+                      Recent activity
+                    </h3>
+
+                  </div>
+
+                </div>
+
+                {guardrailEvents === null && !guardrailError ? (
+
+                  <div
+                    aria-hidden="true"
+                    className="space-y-2"
+                  >
+                    <div className="h-10 animate-pulse rounded-[10px] bg-platinum/45 motion-reduce:animate-none" />
+
+                    <div className="h-10 animate-pulse rounded-[10px] bg-platinum/35 motion-reduce:animate-none" />
+                  </div>
+
+                ) : guardrailError ? (
+
+                  <p className="text-[11px] text-rose-600 sm:text-[12px]">
+                    {guardrailError}
+                  </p>
+
+                ) : (
+
+                  <GuardrailActivity
+                    events={guardrailEvents ?? []}
+                  />
+
+                )}
+
+              </div>
+
+            </div>
+          </motion.section>
+
+          {/* ==================================================
+              GENERAL SETTINGS
+          ================================================== */}
+
+          <motion.section
+            custom={5}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="mb-5"
+          >
+            <h2 className={SECTION_TITLE}>
+              General
+            </h2>
+
+            <div className={`${CARD_STYLE} divide-y divide-platinum/45`}>
+
+              <SettingsRow
+                icon={<Store size={17} strokeWidth={1.8} />}
+                label="Shop details"
+                to="/settings/shop"
+              />
+
+              <SettingsRow
+                icon={<Bell size={17} strokeWidth={1.8} />}
+                label="Notifications"
+                to="/settings/notifications"
+              />
+
+              <SettingsRow
+                icon={
+                  <ShieldCheck
+                    size={17}
+                    strokeWidth={1.8}
+                  />
+                }
+                label="Privacy & security"
+                to="/settings/privacy"
+              />
+
+            </div>
+          </motion.section>
+
+          {/* ==================================================
+              SIGN OUT
+          ================================================== */}
+
+          <motion.div
+            custom={6}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+          >
+            <button
+              type="button"
+              onClick={() => signOut?.()}
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] border border-platinum/60 bg-white px-4 text-[12px] font-semibold text-rose-600 shadow-[0_2px_10px_rgba(42,35,32,0.035)] transition-colors duration-150 hover:border-rose-100 hover:bg-rose-50/60 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+            >
+              <LogOut
+                size={16}
+                strokeWidth={1.9}
+              />
+
+              Sign out
+            </button>
+          </motion.div>
+
+        </div>
+      </div>
     </ScreenShell>
   );
 }
+
+/* ============================================================
+   SETTINGS ROW
+============================================================ */
 
 function SettingsRow({
   icon,
@@ -551,42 +980,98 @@ function SettingsRow({
   description,
   to,
   onClick,
-  disabled,
+  disabled = false,
+  status,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   description?: string;
   to?: string;
   onClick?: () => void;
   disabled?: boolean;
+  status?: string;
 }) {
   const inner = (
+
     <div
-      className={`flex items-center gap-4 px-5 min-h-[56px] py-3 transition-colors duration-150 ${
-        disabled ? 'opacity-45' : 'active:bg-platinum/30'
+      className={`flex min-h-[60px] min-w-0 items-center gap-3 px-4 py-3 sm:px-5 ${
+        disabled ? 'opacity-45' : ''
       }`}
     >
-      <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
+
+      {/* Icon */}
+
+      <div className={ICON_STYLE}>
         {icon}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[15px] font-medium text-accent-dark">{label}</p>
-        {description && <p className="text-[13px] text-olive">{description}</p>}
+
+      {/* Label and description */}
+
+      <div className="min-w-0 flex-1">
+
+        <p className="text-[13px] font-semibold leading-5 text-accent-dark sm:text-[14px]">
+          {label}
+        </p>
+
+        {description && (
+
+          <p className="mt-0.5 break-words text-[11px] leading-4 text-olive/65 sm:text-[12px]">
+            {description}
+          </p>
+
+        )}
+
       </div>
-      {!disabled && <ChevronRight size={15} className="text-olive/50 shrink-0" />}
+
+      {/* Status or navigation */}
+
+      {status && !disabled && (
+
+        <span className="shrink-0 rounded-full bg-[#F2EDE6] px-2.5 py-1 text-[10px] font-semibold text-accent-dark">
+          {status}
+        </span>
+
+      )}
+
+      {!disabled && (
+
+        <ChevronRight
+          size={15}
+          strokeWidth={1.8}
+          className="shrink-0 text-olive/35"
+        />
+
+      )}
+
     </div>
   );
 
   if (disabled) {
-    return <div aria-disabled="true">{inner}</div>;
+    return (
+      <div aria-disabled="true">
+        {inner}
+      </div>
+    );
   }
 
   if (to) {
-    return <Link to={to}>{inner}</Link>;
+    return (
+      <Link
+        to={to}
+        className="block min-w-0 transition-colors duration-150 hover:bg-[#FAF8F5] focus-visible:outline-none focus-visible:bg-[#F2EDE6]/45"
+      >
+        {inner}
+      </Link>
+    );
   }
 
   return (
-    <button className="w-full text-left" onClick={onClick} disabled={disabled}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="block w-full min-w-0 text-left transition-colors duration-150 hover:bg-[#FAF8F5] disabled:cursor-not-allowed focus-visible:outline-none focus-visible:bg-[#F2EDE6]/45"
+    >
       {inner}
     </button>
   );
