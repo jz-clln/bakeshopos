@@ -81,6 +81,9 @@ export type UpdateProductInput = Partial<{
   lead_time_days: number;
   min_quantity: number;
   max_quantity: number | null;
+  // Nullable on purpose — ProductEditorScreen's "Remove photo" sets
+  // this back to null rather than deleting the row.
+  image_url: string | null;
 }>;
 
 export async function updateProduct(
