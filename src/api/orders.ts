@@ -14,17 +14,28 @@ export interface OrderListItem {
   status: OrderStatus;
   event_date: string | null;
   created_at: string;
+  archived_at: string | null;
 }
 
 export async function fetchOrders(
   organizationId: string,
-  status?: OrderStatus
+  status?: OrderStatus,
+  options?: { includeArchived?: boolean }
 ): Promise<OrderListItem[]> {
   let query = supabase
     .from('order_list_view')
     .select('*')
     .eq('organization_id', organizationId)
     .order('created_at', { ascending: false });
+
+  // Archived orders are excluded by default everywhere this is
+  // called from (e.g. the Dashboard's recent-orders list) — an
+  // archived order showing back up somewhere else in the app would
+  // defeat the point of archiving it. Pass includeArchived: true for
+  // the one place that intentionally wants to see them.
+  if (!options?.includeArchived) {
+    query = query.is('archived_at', null);
+  }
 
   if (status) {
     query = query.eq('status', status);
@@ -269,4 +280,33 @@ export async function acceptDraftOrder(orderId: string, changedBy?: string) {
  */
 export async function rejectDraftOrder(orderId: string, changedBy?: string) {
   return transitionOrderStatus(orderId, 'cancelled', changedBy);
+}
+
+/**
+ * Hides an order from the default Orders view without deleting
+ * anything — order_items, payments, and order_status_history all
+ * stay exactly as they are. Reversible via unarchiveOrder. Unlike
+ * status transitions, this isn't gated by transition_order_status
+ * (archiving isn't a pipeline stage — an order can be archived from
+ * any status), so it's a plain column update rather than an RPC call.
+ */
+export async function archiveOrder(orderId: string): Promise<void> {
+  const { error } = await supabase
+    .from('orders')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', orderId);
+
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Undoes archiveOrder — brings the order back into the default view.
+ */
+export async function unarchiveOrder(orderId: string): Promise<void> {
+  const { error } = await supabase
+    .from('orders')
+    .update({ archived_at: null })
+    .eq('id', orderId);
+
+  if (error) throw new Error(error.message);
 }
