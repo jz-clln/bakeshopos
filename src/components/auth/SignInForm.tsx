@@ -56,10 +56,15 @@ export function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
 
   return (
     <div>
-      <h1 className="font-display text-[30px] leading-tight font-semibold text-accent-dark mb-1.5">
-        Welcome back
-      </h1>
-      <p className="text-olive text-[15px] mb-8">Sign in to your shop</p>
+      <div className="text-center mb-8">
+        <h1 className="font-display text-[30px] leading-tight font-semibold text-accent-dark mb-1.5 whitespace-nowrap">
+          Welcome back
+        </h1>
+
+        <p className="text-olive text-[15px] whitespace-nowrap">
+          Sign in to your shop
+        </p>
+    </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <IconInput
