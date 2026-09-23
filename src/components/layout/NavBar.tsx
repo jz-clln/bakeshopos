@@ -1,10 +1,4 @@
 // File: app/src/components/layout/NavBar.tsx
-//
-// iOS-standard navigation bar.
-// - Frosted glass: bg-white/80 + backdrop-blur-xl
-// - Title is absolutely centered so leading/trailing slots never shift it
-// - Spring entrance on mount
-// - 44px minimum touch targets on all interactive slots
 
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
@@ -15,37 +9,68 @@ interface NavBarProps {
   trailing?: ReactNode;
 }
 
-export function NavBar({ title, leading, trailing }: NavBarProps) {
+const EASE = [0.23, 1, 0.32, 1] as const;
+
+export function NavBar({
+  title,
+  leading,
+  trailing,
+}: NavBarProps) {
   return (
     <motion.header
-      initial={{ opacity: 0, y: -8 }}
+      initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.8 }}
-      className="sticky top-0 z-20"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      transition={{
+        duration: 0.24,
+        ease: EASE,
+      }}
+      className="
+        sticky top-0 z-20
+        border-b border-[#E5DED5]
+        bg-white/95
+        shadow-[0_2px_12px_rgba(42,35,32,0.055)]
+        backdrop-blur-2xl
+      "
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+      }}
     >
-      {/* Frosted glass panel */}
-      <div className="relative bg-white/80 backdrop-blur-xl border-b border-white/60 shadow-[0_1px_0_rgba(0,0,0,0.06)]">
-        <div className="relative flex items-center justify-center h-[52px] px-4 max-w-5xl mx-auto">
+      {/* Navigation content */}
 
-          {/* Leading slot — absolutely left */}
-          {leading && (
-            <div className="absolute left-4 flex items-center">
-              {leading}
-            </div>
-          )}
+      <div
+        className="
+          mx-auto grid h-[54px] w-full max-w-5xl
+          grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]
+          items-center gap-2 px-3
+          sm:px-5
+        "
+      >
+        {/* Leading controls */}
 
-          {/* Title — truly centered regardless of slot widths */}
-          <h1 className="text-[17px] font-semibold tracking-tight text-accent-dark select-none px-16 truncate">
-            {title}
-          </h1>
+        <div className="flex min-w-0 items-center justify-start">
+          {leading}
+        </div>
 
-          {/* Trailing slot — absolutely right */}
-          {trailing && (
-            <div className="absolute right-4 flex items-center">
-              {trailing}
-            </div>
-          )}
+        {/* Centered title */}
+
+        <h1
+          className="
+            min-w-0 truncate
+            text-center font-display
+            text-[16px] font-semibold
+            tracking-[-0.025em]
+            text-accent-dark
+            select-none
+            sm:text-[17px]
+          "
+        >
+          {title}
+        </h1>
+
+        {/* Trailing controls */}
+
+        <div className="flex min-w-0 items-center justify-end">
+          {trailing}
         </div>
       </div>
     </motion.header>
