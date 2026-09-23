@@ -1,9 +1,10 @@
 // File: app/src/screens/ConversationDetailScreen.tsx
 
 import { useEffect, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check, Receipt, Clock, Trash2 } from 'lucide-react';
+import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check, Receipt, Clock, Trash2, MessageCircle } from 'lucide-react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   fetchConversationDetail,
@@ -115,6 +116,58 @@ export function ConversationDetailScreen() {
   const [messageToDelete, setMessageToDelete] = useState<MessageRow | null>(null);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Message actions appear only after a deliberate press, not on hover or tap.
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressOriginRef = useRef<{ x: number; y: number } | null>(null);
+
+  function cancelMessagePress() {
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = null;
+    pressOriginRef.current = null;
+  }
+
+  function startMessagePress(event: ReactPointerEvent<HTMLDivElement>, messageId: string) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    cancelMessagePress();
+    setSelectedMessageId(null);
+    pressOriginRef.current = { x: event.clientX, y: event.clientY };
+    pressTimerRef.current = setTimeout(() => {
+      pressTimerRef.current = null;
+      pressOriginRef.current = null;
+      setSelectedMessageId(messageId);
+    }, 550);
+  }
+
+  function moveMessagePress(event: ReactPointerEvent<HTMLDivElement>) {
+    const origin = pressOriginRef.current;
+    if (origin && (Math.abs(event.clientX - origin.x) > 8 || Math.abs(event.clientY - origin.y) > 8)) {
+      cancelMessagePress();
+    }
+  }
+
+  useEffect(() => () => {
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedMessageId) return;
+    function dismiss(event: globalThis.PointerEvent) {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-message-delete-action]')) return;
+      setSelectedMessageId(null);
+    }
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSelectedMessageId(null);
+    }
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', dismissOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      document.removeEventListener('keydown', dismissOnEscape);
+    };
+  }, [selectedMessageId]);
 
   // The AI's most recent still-undecided (status: inquiry) order for
   // this conversation, shown as a review banner until the owner
@@ -421,7 +474,7 @@ export function ConversationDetailScreen() {
   const customerAvatarSrc = hasAvatar ? conversation?.customer_avatar_url ?? undefined : preset?.src;
 
   return (
-    <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-platinum/30">
+    <div className="fixed inset-0 z-30 flex min-h-0 flex-col overflow-hidden bg-[#F6EEE2] md:left-64">
       {/* Header — thin and translucent, with fixed left padding
           instead of a centered max-width wrapper. That's deliberate:
           a centered wrapper's side margins grow with the window (or
@@ -430,94 +483,127 @@ export function ConversationDetailScreen() {
           away from the sidebar edge. Fixed padding means this block
           sits at the same offset from the sidebar no matter the
           window size or zoom level. */}
+      {/* 
+      ============================================================
+      CONVERSATION TOPBAR
+      ============================================================ */}
+
       <motion.div
-        initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22, ease: EASE }}
-        className="shrink-0 border-b border-black/[0.05] bg-white/85 backdrop-blur-xl"
+        className="z-10 shrink-0 border-b border-[#E5DED5] bg-[#ffffff] shadow-[0_3px_12px_rgba(42,35,32,0.06)]"
       >
         <div
-          className="flex items-center gap-3 px-5 md:px-6 w-full"
-          style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)', paddingBottom: '12px' }}
+          className="flex w-full min-w-0 items-center gap-2 px-3 sm:gap-3 sm:px-5 md:px-6"
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top), 10px)',
+            paddingBottom: '10px',
+            minHeight: '68px',
+          }}
         >
-          {/* Visually minimal — no fill, no shadow, just the chevron —
-              but the tap target is still a full 44x44px via padding,
-              so it stays comfortable to hit on a phone even though it
-              doesn't look like a big button. */}
+          {/* Back button */}
           <button
+            type="button"
             onClick={() => navigate('/messages')}
             aria-label="Back to Messages"
-            className="w-11 h-11 -ml-2 rounded-full flex items-center justify-center shrink-0 text-olive hover:text-accent-dark hover:bg-platinum/50 transition-colors duration-150 active:scale-90"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-olive transition-all duration-150 hover:bg-platinum/50 hover:text-accent-dark active:scale-90"
           >
-            <ArrowLeft size={16} strokeWidth={2.25} />
+            <ArrowLeft size={17} strokeWidth={2.1} />
           </button>
 
+          {/* Customer avatar */}
           {!loading && conversation && (
             <div className="relative shrink-0">
               <img
                 src={customerAvatarSrc}
                 alt=""
-                className="w-9 h-9 rounded-full object-cover bg-platinum ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
+                className="h-10 w-10 rounded-full bg-platinum object-cover ring-1 ring-black/[0.05]"
                 onError={() => setAvatarFailed(true)}
               />
-              {/* Small channel-color dot — the one deliberate flourish
-                  in an otherwise quiet header. */}
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0084FF] ring-2 ring-white" />
+
+              {/* Green profile indicator */}
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
             </div>
           )}
 
+          {/* Customer information */}
           <div className="min-w-0 flex-1">
             {editingName ? (
-              <div className="flex items-center gap-1.5">
+              <div className="w-full max-w-[260px]">
                 <input
                   autoFocus
+                  type="text"
                   value={nameDraft}
                   onChange={(e) => setNameDraft(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); handleSaveName(); }
-                    if (e.key === 'Escape') { e.preventDefault(); handleCancelEditName(); }
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSaveName();
+                    }
+
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      handleCancelEditName();
+                    }
                   }}
                   placeholder="Customer's name"
-                  className="min-w-0 flex-1 font-display text-[17px] font-bold tracking-tight text-accent-dark bg-transparent border-b border-accent-dark/30 focus:outline-none focus:border-accent-dark"
+                  className="h-9 w-full min-w-0 rounded-[10px] border border-platinum/80 bg-platinum/35 px-3 font-display text-[14px] font-semibold tracking-[-0.02em] text-accent-dark outline-none transition-all duration-150 placeholder:font-normal placeholder:text-olive/40 focus:border-accent-dark/25 focus:bg-white focus:ring-2 focus:ring-accent-dark/[0.06]"
                 />
-                <button
-                  onClick={handleSaveName}
-                  disabled={savingName || !nameDraft.trim()}
-                  aria-label="Save name"
-                  className="w-7 h-7 rounded-full bg-accent-dark text-white flex items-center justify-center shrink-0 transition-transform duration-150 active:scale-90 disabled:opacity-40"
-                >
-                  <Check size={13} strokeWidth={2.5} />
-                </button>
-                <button
-                  onClick={handleCancelEditName}
-                  aria-label="Cancel"
-                  className="w-7 h-7 rounded-full bg-platinum flex items-center justify-center shrink-0 text-olive transition-transform duration-150 active:scale-90"
-                >
-                  <X size={13} />
-                </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1 min-w-0">
-                <p className="font-display text-[17px] font-bold tracking-tight text-accent-dark truncate leading-tight">
-                  {headerName}
-                </p>
-                {conversation && (
-                  <button
-                    onClick={handleStartEditName}
-                    aria-label="Edit customer name"
-                    className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-olive/50 hover:text-accent-dark hover:bg-platinum/50 transition-colors duration-150"
-                  >
-                    <Pencil size={12} />
-                  </button>
-                )}
-              </div>
+              <p className="truncate font-display text-[16px] font-semibold leading-tight tracking-[-0.025em] text-accent-dark sm:text-[17px]">
+                {headerName}
+              </p>
             )}
 
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-olive/70 mt-0.5">
-              <ChannelIcon size={10} />
+            <span className="mt-1 flex items-center gap-1 text-[11px] font-medium text-olive/60">
+              <ChannelIcon size={11} />
               Messenger
             </span>
 
-            {nameError && <p className="text-[11px] text-red-600 mt-0.5">{nameError}</p>}
+            {nameError && (
+              <p className="mt-1 text-[11px] text-red-600">
+                {nameError}
+              </p>
+            )}
+          </div>
+
+          {/* Right-side actions */}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {editingName ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSaveName}
+                  disabled={savingName || !nameDraft.trim()}
+                  aria-label="Save name"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-dark text-white transition-transform duration-150 active:scale-90 disabled:opacity-40"
+                >
+                  <Check size={14} strokeWidth={2.4} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCancelEditName}
+                  aria-label="Cancel editing name"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-platinum/60 text-olive transition-transform duration-150 active:scale-90"
+                >
+                  <X size={14} strokeWidth={2} />
+                </button>
+              </>
+            ) : (
+              conversation && (
+                <button
+                  type="button"
+                  onClick={handleStartEditName}
+                  aria-label="Edit customer name"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-olive/55 transition-colors duration-150 hover:bg-platinum/50 hover:text-accent-dark active:scale-90"
+                >
+                  <Pencil size={15} strokeWidth={1.8} />
+                </button>
+              )
+            )}
           </div>
         </div>
       </motion.div>
@@ -526,18 +612,18 @@ export function ConversationDetailScreen() {
       {!loading && conversation && showLetAiHandle && (
         <motion.div
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 px-5 md:px-6 pt-3 w-full"
+          className="w-full shrink-0 px-3 pt-2.5 sm:px-5 md:px-6"
         >
-          <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-[14px] ${
+          <div className={`flex w-full min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-[16px] border px-3.5 py-2.5 sm:flex-nowrap sm:px-4 ${
             conversation.handler === 'handoff_required'
-              ? 'bg-amber-50'
-              : 'bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]'
+              ? 'border-amber-200/70 bg-amber-50/90'
+              : 'border-platinum/60 bg-white shadow-[0_2px_9px_rgba(42,35,32,0.035)]'
           }`}>
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {conversation.handler === 'handoff_required' && (
                 <AlertTriangle size={15} className="text-amber-600 shrink-0" />
               )}
-              <p className="text-[12px] font-medium text-accent-dark leading-snug">
+              <p className="text-[12px] font-medium leading-5 text-accent-dark">
                 {conversation.handler === 'handoff_required'
                   ? 'AI needs help with this conversation'
                   : conversation.handler === 'paused'
@@ -548,7 +634,7 @@ export function ConversationDetailScreen() {
             <button
               onClick={handleLetAiHandle}
               disabled={switchingHandler}
-              className="shrink-0 self-center inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1.5 rounded-full bg-accent-dark text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
+              className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 self-center rounded-full bg-accent-dark px-3.5 text-[11px] font-semibold text-white transition-colors duration-150 hover:bg-accent-dark/90 active:scale-[0.98] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25"
             >
               <Bot size={13} />
               {switchingHandler ? 'Switching…' : 'Let AI handle this'}
@@ -562,20 +648,20 @@ export function ConversationDetailScreen() {
       {!loading && pendingOrder && (
         <motion.div
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 px-5 md:px-6 pt-3 pb-1 w-full"
+          className="w-full shrink-0 px-3 pb-0.5 pt-2.5 sm:px-5 md:px-6"
         >
-          <div className="rounded-[14px] bg-white border border-black/[0.08] shadow-[0_2px_6px_rgba(42,35,32,0.06)] px-4 py-3.5">
+          <div className="w-full min-w-0 rounded-[16px] border border-platinum/70 bg-white px-3.5 py-3 shadow-[0_3px_14px_rgba(42,35,32,0.045)] sm:px-4">
             <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-              <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark">
+              <p className="inline-flex min-w-0 items-center gap-1.5 text-[12px] font-semibold leading-5 text-accent-dark">
                 <Receipt size={13} className="text-olive shrink-0" />
                 New order awaiting your confirmation
               </p>
-              <span className="shrink-0 ml-auto text-[15px] font-bold text-accent-dark tabular-nums">
+              <span className="ml-auto shrink-0 font-display text-[14px] font-bold tabular-nums text-accent-dark">
                 {formatPrice(pendingOrder.total_amount)}
               </span>
             </div>
 
-            <p className="text-[12.5px] text-olive truncate mt-1">{pendingOrder.item_summary}</p>
+            <p className="mt-1 truncate text-[12px] text-olive/80">{pendingOrder.item_summary}</p>
             {pendingOrder.event_date && (
               <p className="text-[11px] text-olive/70 mt-0.5">
                 For {formatOrderEventDate(pendingOrder.event_date)}
@@ -586,10 +672,10 @@ export function ConversationDetailScreen() {
               <p className="text-[11px] text-accent mt-2">{orderActionError}</p>
             )}
 
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 mt-3">
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-2">
               <button
                 onClick={() => setViewingOrderId(pendingOrder.id)}
-                className="text-[12px] font-medium text-olive underline underline-offset-2"
+                className="inline-flex min-h-9 items-center text-[11px] font-semibold text-olive underline underline-offset-2 hover:text-accent-dark"
               >
                 View details
               </button>
@@ -597,14 +683,14 @@ export function ConversationDetailScreen() {
               <button
                 onClick={handleRejectOrder}
                 disabled={decidingOrder}
-                className="text-[13px] font-medium px-3.5 py-1.5 rounded-control text-olive hover:bg-platinum/60 transition-colors duration-150 active:scale-95 disabled:opacity-50"
+                className="inline-flex min-h-9 items-center rounded-full bg-platinum/50 px-3.5 text-[11px] font-semibold text-olive transition-colors duration-150 hover:bg-platinum active:scale-95 disabled:opacity-50"
               >
                 Reject
               </button>
               <button
                 onClick={handleAcceptOrder}
                 disabled={decidingOrder}
-                className="text-[13px] font-semibold px-4 py-1.5 rounded-control bg-accent-dark text-white transition-transform duration-150 active:scale-95 disabled:opacity-50"
+                className="inline-flex min-h-9 items-center rounded-full bg-accent-dark px-4 text-[11px] font-semibold text-white transition-colors duration-150 hover:bg-accent-dark/90 active:scale-95 disabled:opacity-50"
               >
                 {decidingOrder ? 'Saving…' : 'Accept'}
               </button>
@@ -615,23 +701,29 @@ export function ConversationDetailScreen() {
 
       {/* Message list */}
       <div
-        className="flex-1 overflow-y-auto min-h-0 px-5 md:px-6"
+        className="min-h-0 flex-1 overscroll-contain overflow-y-auto bg-[#F6EEE2] px-3 sm:px-5 md:px-6"
+        onScroll={() => { cancelMessagePress(); setSelectedMessageId(null); }}
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
+        <div className="w-full min-w-0">
         {loading ? (
           <div className="space-y-3 pt-4">
             {[0, 1, 2].map((i) => (
               <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-                <div className="h-10 w-2/3 rounded-[16px] bg-white animate-pulse shadow-[0_1px_4px_rgba(0,0,0,0.06)]" />
+                <div className="h-10 w-2/3 max-w-[340px] animate-pulse rounded-[18px] bg-white shadow-[0_1px_4px_rgba(42,35,32,0.04)] motion-reduce:animate-none" />
               </div>
             ))}
           </div>
         ) : messages.length === 0 ? (
-          <div className="py-16 flex flex-col items-center gap-2">
-            <p className="text-sm text-olive">No messages yet.</p>
+          <div className="flex min-h-[220px] flex-col items-center justify-center px-4 py-12 text-center">
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[15px] bg-white text-olive shadow-[0_2px_10px_rgba(42,35,32,0.035)]">
+              <MessageCircle size={18} strokeWidth={1.8} />
+            </div>
+            <p className="text-[13px] font-semibold text-accent-dark">No messages yet</p>
+            <p className="mt-1 text-[12px] leading-5 text-olive/60">Your conversation will appear here.</p>
           </div>
         ) : (
-          <div className="pt-3 pb-4">
+          <div className="pb-5 pt-2">
             {messages.map((msg, i) => {
               const prev = messages[i - 1];
               const next = messages[i + 1];
@@ -669,8 +761,8 @@ export function ConversationDetailScreen() {
               return (
                 <div key={msg.id}>
                   {showDateDivider && (
-                    <div className="flex items-center justify-center py-5 first:pt-2">
-                      <span className="text-[11px] font-semibold text-olive bg-white/90 px-3.5 py-1.5 rounded-full shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
+                    <div className="flex items-center justify-center py-4 first:pt-2">
+                      <span className="rounded-full border border-platinum/60 bg-white/80 px-3 py-1 text-[10px] font-semibold text-olive/65 shadow-[0_1px_3px_rgba(42,35,32,0.025)]">
                         {formatDateDivider(msg.created_at)}
                       </span>
                     </div>
@@ -679,62 +771,65 @@ export function ConversationDetailScreen() {
                     initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, ease: EASE }}
                     className={`group flex items-end gap-1.5 ${isCustomer ? 'justify-start' : 'justify-end'} ${
-                      groupedWithPrev ? 'mt-1' : 'mt-3'
+                      groupedWithPrev ? 'mt-1' : 'mt-3.5'
                     }`}
                   >
                     {isCustomer && (
-                      <div className="w-6 h-6 shrink-0">
+                      <div className="h-6 w-6 shrink-0">
                         {showTimestamp && (
                           <img
                             src={customerAvatarSrc}
                             alt=""
-                            className="w-6 h-6 rounded-full object-cover bg-platinum ring-1 ring-black/[0.05]"
+                            className="h-6 w-6 rounded-full bg-platinum object-cover ring-1 ring-black/[0.05]"
                           />
                         )}
                       </div>
                     )}
-                    {/* Delete affordance — sits opposite the avatar so
-                        it never collides with it. Always at least
-                        partly visible on mobile (no hover there), and
-                        hidden until hover on desktop so it doesn't
-                        clutter every row at once. Removing a message
-                        only cleans up this dashboard's own view — see
-                        deleteMessage's comment for why this can't
-                        actually un-send anything from Messenger. */}
-                    {!isCustomer && (
+                    {/* Delete action is revealed only by a long press on the bubble. */}
+                    {!isCustomer && selectedMessageId === msg.id && (
                       <button
-                        onClick={() => setMessageToDelete(msg)}
+                        type="button"
+                        data-message-delete-action
+                        onClick={() => { setSelectedMessageId(null); setMessageToDelete(msg); }}
                         aria-label="Delete message"
-                        className="mb-1 shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-olive/50 hover:text-red-500 hover:bg-red-50 transition-colors duration-150 opacity-60 md:opacity-0 md:group-hover:opacity-100"
+                        className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-red-100 bg-white text-red-500 shadow-[0_2px_10px_rgba(0,0,0,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={15} />
                       </button>
                     )}
-                    <div className={`max-w-[min(75%,560px)] rounded-[18px] overflow-hidden transition-shadow duration-150 ${
-                      msg.media_url ? 'p-1.5' : 'px-4 py-2.5'
+                    <div
+                      onPointerDown={(event) => startMessagePress(event, msg.id)}
+                      onPointerMove={moveMessagePress}
+                      onPointerUp={cancelMessagePress}
+                      onPointerCancel={cancelMessagePress}
+                      onPointerLeave={cancelMessagePress}
+                      onContextMenu={(event) => event.preventDefault()}
+                      style={{ WebkitTouchCallout: 'none' }}
+                      className={`min-w-0 max-w-[min(80%,560px)] cursor-default select-none overflow-hidden rounded-[18px] md:select-text transition-shadow duration-150 sm:max-w-[min(72%,560px)] ${
+                      msg.media_url ? 'p-1.5' : 'px-3.5 py-2.5'
                     } ${
                       isCustomer
-                        ? 'bg-white text-accent-dark shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_10px_rgba(0,0,0,0.09)] rounded-bl-[4px]'
+                        ? 'rounded-bl-[5px] border border-platinum/60 bg-white text-accent-dark shadow-[0_2px_8px_rgba(42,35,32,0.035)]'
                         : isQueued
-                        ? 'bg-accent-light/20 text-accent-dark rounded-br-[4px] border border-accent-light'
+                        ? 'rounded-br-[5px] border border-accent-light/70 bg-accent-light/25 text-accent-dark'
                         : notDelivered
-                        ? 'bg-platinum text-accent-dark rounded-br-[4px] border border-dashed border-olive/40'
-                        : 'bg-accent-dark text-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.16)] rounded-br-[4px]'
+                        ? 'rounded-br-[5px] border border-dashed border-olive/40 bg-platinum/70 text-accent-dark'
+                        : 'rounded-br-[5px] bg-accent-dark text-white shadow-[0_2px_8px_rgba(42,35,32,0.09)]'
                     }`}>
                       {msg.media_url && (
                         <img
                           src={msg.media_url}
                           alt="Attachment"
-                          className="rounded-[13px] max-w-full max-h-[280px] object-cover"
+                          className="max-h-[320px] max-w-full rounded-[13px] object-contain"
                         />
                       )}
                       {msg.body && (
-                        <p className={`text-[14px] leading-relaxed whitespace-pre-wrap ${msg.media_url ? 'px-2.5 pt-2' : ''}`}>
+                        <p className={`whitespace-pre-wrap break-words text-[13px] leading-[1.55] sm:text-[14px] ${msg.media_url ? 'px-2.5 pt-2' : ''}`}>
                           {msg.body}
                         </p>
                       )}
                       {showTimestamp && (
-                        <div className={`flex items-center gap-1.5 mt-1 ${msg.media_url ? 'px-2.5 pb-1' : ''} ${isCustomer ? 'justify-start' : 'justify-end'}`}>
+                        <div className={`mt-1.5 flex items-center gap-1.5 ${msg.media_url ? 'px-2.5 pb-1' : ''} ${isCustomer ? 'justify-start' : 'justify-end'}`}>
                           {!isCustomer && (
                             <span className={`text-[10px] font-semibold uppercase tracking-wide ${
                               isQueued ? 'text-accent-dark/60' : notDelivered ? 'text-olive' : 'opacity-70'
@@ -742,7 +837,7 @@ export function ConversationDetailScreen() {
                               {msg.sender_type === 'ai' ? 'AI' : 'You'}
                             </span>
                           )}
-                          <span className={`text-[11px] ${
+                          <span className={`text-[10px] ${
                             isCustomer ? 'text-olive' : isQueued ? 'text-accent-dark/60' : notDelivered ? 'text-olive' : 'text-white/60'
                           }`}>
                             {formatTime(msg.created_at)}
@@ -763,13 +858,15 @@ export function ConversationDetailScreen() {
                         </p>
                       )}
                     </div>
-                    {isCustomer && (
+                    {isCustomer && selectedMessageId === msg.id && (
                       <button
-                        onClick={() => setMessageToDelete(msg)}
+                        type="button"
+                        data-message-delete-action
+                        onClick={() => { setSelectedMessageId(null); setMessageToDelete(msg); }}
                         aria-label="Delete message"
-                        className="mb-1 shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-olive/50 hover:text-red-500 hover:bg-red-50 transition-colors duration-150 opacity-60 md:opacity-0 md:group-hover:opacity-100"
+                        className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-red-100 bg-white text-red-500 shadow-[0_2px_10px_rgba(0,0,0,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </motion.div>
@@ -779,14 +876,15 @@ export function ConversationDetailScreen() {
             <div ref={bottomRef} />
           </div>
         )}
+        </div>
       </div>
 
       {/* Compose bar */}
-      <div
-        className="shrink-0 border-t border-black/[0.04] bg-white/80 backdrop-blur-xl px-5 md:px-6 pt-3"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
-      >
-        <div className="w-full">
+        <div
+          className="relative z-10 shrink-0 border-t border-[#E5DED5] bg-white px-3 pt-2.5 shadow-[0_-5px_22px_rgba(42,35,32,0.14)] sm:px-5 md:px-6"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 10px)' }}
+        >
+        <div className="w-full min-w-0">
           {sendError && (
             <p className="text-[12px] text-red-600 mb-1.5 px-1">{sendError}</p>
           )}
@@ -795,15 +893,15 @@ export function ConversationDetailScreen() {
           )}
 
           {pendingImagePreview && (
-            <div className="mb-2 relative inline-block">
+            <div className="relative mb-2 inline-block">
               <img
                 src={pendingImagePreview}
                 alt="Selected"
-                className="h-16 w-16 object-cover rounded-[10px] border border-black/[0.08]"
+                className="h-16 w-16 rounded-[12px] border border-platinum/70 object-cover shadow-[0_2px_8px_rgba(42,35,32,0.06)]"
               />
               <button
                 onClick={clearPendingImage}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-dark text-white flex items-center justify-center shadow-[0_1px_4px_rgba(0,0,0,0.2)]"
+                className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-accent-dark text-white shadow-[0_2px_7px_rgba(42,35,32,0.18)]"
                 aria-label="Remove image"
               >
                 <X size={11} />
@@ -811,7 +909,7 @@ export function ConversationDetailScreen() {
             </div>
           )}
 
-          <div className="flex items-end gap-1 bg-platinum/50 border border-black/[0.06] rounded-[22px] p-1.5 transition-colors duration-150 focus-within:bg-white focus-within:border-accent-dark/25">
+          <div className="flex min-w-0 items-end gap-0.5 rounded-[22px] border border-[#E5DED5] bg-white p-1 shadow-[inset_0_1px_2px_rgba(42,35,32,0.025)] transition-colors duration-150 focus-within:border-accent-dark/25 focus-within:ring-2 focus-within:ring-accent-dark/[0.04] sm:gap-1">
             <input
               ref={fileInputRef}
               type="file"
@@ -822,7 +920,7 @@ export function ConversationDetailScreen() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-olive hover:text-accent-dark transition-colors duration-150"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-olive/70 transition-colors duration-150 hover:bg-platinum/60 hover:text-accent-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/20"
               aria-label="Attach image"
             >
               <ImageIcon size={18} />
@@ -839,7 +937,7 @@ export function ConversationDetailScreen() {
               }}
               placeholder="Type a reply…"
               rows={1}
-              className="flex-1 resize-none bg-transparent px-2 py-2.5 text-[14px] text-accent-dark placeholder:text-olive/70 focus:outline-none max-h-24"
+              className="max-h-24 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1.5 py-2.5 text-[14px] leading-5 text-accent-dark outline-none placeholder:text-olive/45 sm:px-2"
             />
 
             <EmojiPicker onSelect={handleEmojiSelect} />
@@ -847,7 +945,7 @@ export function ConversationDetailScreen() {
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className="w-10 h-10 rounded-full bg-accent-dark text-white flex items-center justify-center shrink-0 transition-all duration-150 active:scale-90 disabled:opacity-30 disabled:bg-olive/30"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-dark text-white shadow-[0_2px_6px_rgba(42,35,32,0.12)] transition-all duration-150 hover:bg-accent-dark/90 active:scale-95 disabled:bg-olive/20 disabled:text-olive/45 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25"
               aria-label="Send"
             >
               <Send size={15} />
