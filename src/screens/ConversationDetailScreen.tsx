@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check, Receipt, Clock } from 'lucide-react';
+import { ArrowLeft, Bot, Send, AlertTriangle, Image as ImageIcon, X, Pencil, Check, Receipt, Clock, Trash2 } from 'lucide-react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   fetchConversationDetail,
@@ -11,9 +11,11 @@ import {
   markConversationViewed,
   setConversationHandler,
   sendOwnerMessage,
+  deleteMessage,
   type ConversationDetail,
   type MessageRow,
 } from '../api/messages';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   fetchPendingOrderForConversation,
   acceptDraftOrder,
@@ -104,6 +106,15 @@ export function ConversationDetailScreen() {
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+
+  // Deleting a message removes it from this shop's own view only —
+  // it does NOT un-send it from the customer's actual Messenger
+  // inbox (Meta doesn't expose that to Pages via the API). Confirmed
+  // via ConfirmDialog since it's irreversible from this dashboard's
+  // side, even though it's a low-stakes "clean up my view" action.
+  const [messageToDelete, setMessageToDelete] = useState<MessageRow | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // The AI's most recent still-undecided (status: inquiry) order for
   // this conversation, shown as a review banner until the owner
@@ -280,6 +291,23 @@ export function ConversationDetailScreen() {
       setOrderActionError(err instanceof Error ? err.message : 'Could not reject this order.');
     } finally {
       setDecidingOrder(false);
+    }
+  }
+
+  async function handleConfirmDeleteMessage() {
+    if (!messageToDelete) return;
+    const id = messageToDelete.id;
+    setDeletingMessageId(id);
+    setDeleteError(null);
+    try {
+      await deleteMessage(id);
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+      setMessageToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete this message.');
+    } finally {
+      setDeletingMessageId(null);
     }
   }
 
@@ -650,7 +678,7 @@ export function ConversationDetailScreen() {
                   <motion.div
                     initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, ease: EASE }}
-                    className={`flex items-end gap-2 ${isCustomer ? 'justify-start' : 'justify-end'} ${
+                    className={`group flex items-end gap-1.5 ${isCustomer ? 'justify-start' : 'justify-end'} ${
                       groupedWithPrev ? 'mt-1' : 'mt-3'
                     }`}
                   >
@@ -664,6 +692,23 @@ export function ConversationDetailScreen() {
                           />
                         )}
                       </div>
+                    )}
+                    {/* Delete affordance — sits opposite the avatar so
+                        it never collides with it. Always at least
+                        partly visible on mobile (no hover there), and
+                        hidden until hover on desktop so it doesn't
+                        clutter every row at once. Removing a message
+                        only cleans up this dashboard's own view — see
+                        deleteMessage's comment for why this can't
+                        actually un-send anything from Messenger. */}
+                    {!isCustomer && (
+                      <button
+                        onClick={() => setMessageToDelete(msg)}
+                        aria-label="Delete message"
+                        className="mb-1 shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-olive/50 hover:text-red-500 hover:bg-red-50 transition-colors duration-150 opacity-60 md:opacity-0 md:group-hover:opacity-100"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     )}
                     <div className={`max-w-[min(75%,560px)] rounded-[18px] overflow-hidden transition-shadow duration-150 ${
                       msg.media_url ? 'p-1.5' : 'px-4 py-2.5'
@@ -718,6 +763,15 @@ export function ConversationDetailScreen() {
                         </p>
                       )}
                     </div>
+                    {isCustomer && (
+                      <button
+                        onClick={() => setMessageToDelete(msg)}
+                        aria-label="Delete message"
+                        className="mb-1 shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-olive/50 hover:text-red-500 hover:bg-red-50 transition-colors duration-150 opacity-60 md:opacity-0 md:group-hover:opacity-100"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
                   </motion.div>
                 </div>
               );
@@ -735,6 +789,9 @@ export function ConversationDetailScreen() {
         <div className="w-full">
           {sendError && (
             <p className="text-[12px] text-red-600 mb-1.5 px-1">{sendError}</p>
+          )}
+          {deleteError && (
+            <p className="text-[12px] text-red-600 mb-1.5 px-1">{deleteError}</p>
           )}
 
           {pendingImagePreview && (
@@ -802,6 +859,16 @@ export function ConversationDetailScreen() {
       {viewingOrderId && (
         <OrderDetailModal orderId={viewingOrderId} onClose={() => setViewingOrderId(null)} />
       )}
+
+      <ConfirmDialog
+        open={!!messageToDelete}
+        title="Delete this message?"
+        description="This removes it from your view only. It will NOT be un-sent from the customer's actual Messenger inbox — Facebook doesn't allow Pages to retract messages that way."
+        confirmLabel={deletingMessageId ? 'Deleting…' : 'Delete'}
+        destructive
+        onConfirm={handleConfirmDeleteMessage}
+        onCancel={() => setMessageToDelete(null)}
+      />
     </div>
   );
 }
