@@ -3,13 +3,15 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Trash2, Sparkles, Info } from 'lucide-react';
+import { ChevronLeft, Trash2, Sparkles, Info, Camera, Image as ImageIcon, X } from 'lucide-react';
 import { NavBar } from '../components/layout/NavBar';
 import { CategoryPicker } from '../components/catalog/CategoryPicker';
 import { VariantsSection } from '../components/catalog/VariantsSection';
 import { OptionsSection } from '../components/catalog/OptionsSection';
 import { Stepper } from '../components/ui/Stepper';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useAuth } from '../lib/auth-context';
+import { supabase } from '../lib/supabase';
 import {
   useCreateProduct,
   useDeleteProduct,
@@ -37,10 +39,13 @@ What occasions is this best for?
 
 The more you write here, the better your assistant can answer DMs on Facebook and Instagram.`;
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 export function ProductEditorScreen() {
   const { productId: routeProductId } = useParams<{ productId: string }>();
   const isNewProduct = !routeProductId || routeProductId === 'new';
   const navigate = useNavigate();
+  const { organizationId } = useAuth();
 
   const { data: product, isLoading } = useProduct(isNewProduct ? undefined : routeProductId);
   const createProduct = useCreateProduct();
@@ -54,6 +59,8 @@ export function ProductEditorScreen() {
   const [leadTimeDays, setLeadTimeDays] = useState(0);
   const [minQuantity, setMinQuantity] = useState(1);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   useEffect(() => {
     if (product) {
@@ -112,6 +119,56 @@ export function ProductEditorScreen() {
     deleteProduct.mutate(routeProductId, {
       onSuccess: () => navigate('/catalog', { replace: true }),
     });
+  }
+
+  // Uploads straight to the product-images bucket under
+  // <organization_id>/<product_id>/<timestamp>.<ext> — that path shape
+  // is what the storage RLS policies in
+  // 20260923_add_product_images.sql check against, so it can't be
+  // changed here without updating those policies too. Bucket is
+  // public (has to be — Facebook's servers fetch this URL directly to
+  // deliver it as a Messenger attachment), so getPublicUrl is enough;
+  // no signed URL needed.
+  async function handleImageUpload(file: File) {
+    if (!routeProductId || isNewProduct || !organizationId) return;
+
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError('Image must be under 5MB.');
+      return;
+    }
+
+    setImageError(null);
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `${organizationId}/${routeProductId}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('product-images').getPublicUrl(path);
+
+      updateProduct.mutate({
+        id: routeProductId,
+        updates: { image_url: publicUrlData.publicUrl },
+      });
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : 'Could not upload image.');
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  // Clears the reference only — doesn't delete the file from storage.
+  // Simplest safe behavior for now; an orphaned file in a private
+  // bucket would be worth cleaning up, but this bucket only ever holds
+  // small product photos, so the cost of leaving one behind is trivial.
+  function handleRemoveImage() {
+    if (!routeProductId) return;
+    setImageError(null);
+    updateProduct.mutate({ id: routeProductId, updates: { image_url: null } });
   }
 
   const saving = createProduct.isPending || updateProduct.isPending;
@@ -209,8 +266,64 @@ export function ProductEditorScreen() {
           </div>
         </motion.section>
 
+        {/* Photo (existing product only — needs a product id for the
+            storage path) */}
+        {!isNewProduct && (
+          <motion.section custom={1} variants={fadeUp} initial="hidden" animate="visible">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-olive mb-2 px-1">
+              Photo
+            </p>
+            <div className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] p-5 flex items-center gap-4">
+              <div className="w-24 h-24 rounded-[16px] bg-platinum/50 overflow-hidden flex items-center justify-center shrink-0">
+                {product?.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon size={24} className="text-olive/50" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] text-olive leading-relaxed mb-2">
+                  Shown in your catalog, and sent automatically when a customer on Messenger
+                  asks what this cake looks like.
+                </p>
+                <div className="flex items-center gap-4">
+                  <label className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-accent-dark cursor-pointer">
+                    <Camera size={15} />
+                    {uploadingImage ? 'Uploading…' : product?.image_url ? 'Change photo' : 'Upload photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingImage}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  {product?.image_url && (
+                    <button
+                      onClick={handleRemoveImage}
+                      className="inline-flex items-center gap-1 text-[13px] font-medium text-red-500"
+                    >
+                      <X size={13} />
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {imageError && <p className="text-[12px] text-red-600 mt-1.5">{imageError}</p>}
+              </div>
+            </div>
+          </motion.section>
+        )}
+
         {/* AI assistant context */}
-        <motion.section custom={1} variants={fadeUp} initial="hidden" animate="visible">
+        <motion.section custom={2} variants={fadeUp} initial="hidden" animate="visible">
           <div className="flex items-center gap-2 mb-2 px-1">
             <Sparkles size={13} className="text-accent-dark" strokeWidth={2} />
             <p className="text-[11px] font-semibold uppercase tracking-widest text-olive">
@@ -256,25 +369,26 @@ export function ProductEditorScreen() {
         {/* Variants and Options (existing product only) */}
         {isNewProduct ? (
           <motion.div
-            custom={2} variants={fadeUp} initial="hidden" animate="visible"
+            custom={3} variants={fadeUp} initial="hidden" animate="visible"
             className="flex gap-3 bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4"
           >
             <Info size={16} className="text-olive shrink-0 mt-0.5" strokeWidth={2} />
             <p className="text-[14px] text-olive leading-relaxed">
-              Save this product first, then you can add{' '}
-              <span className="font-medium text-accent-dark">sizes</span> and{' '}
+              Save this product first, then you can add a{' '}
+              <span className="font-medium text-accent-dark">photo</span>,{' '}
+              <span className="font-medium text-accent-dark">sizes</span>, and{' '}
               <span className="font-medium text-accent-dark">options</span> like flavors and add-ons.
             </p>
           </motion.div>
         ) : (
           <>
-            <motion.div custom={2} variants={fadeUp} initial="hidden" animate="visible">
+            <motion.div custom={3} variants={fadeUp} initial="hidden" animate="visible">
               <VariantsSection productId={routeProductId!} variants={product?.variants ?? []} />
             </motion.div>
-            <motion.div custom={3} variants={fadeUp} initial="hidden" animate="visible">
+            <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible">
               <OptionsSection productId={routeProductId!} options={product?.options ?? []} />
             </motion.div>
-            <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible">
+            <motion.div custom={5} variants={fadeUp} initial="hidden" animate="visible">
               <button
                 onClick={() => setConfirmDeleteOpen(true)}
                 className="w-full flex items-center justify-center gap-2 min-h-[52px] rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-red-500 text-[15px] font-semibold transition-colors duration-150 hover:bg-red-50 active:scale-[0.98]"
