@@ -246,33 +246,112 @@ export function SettingsScreen() {
       </motion.h1>
 
       {/* Shop identity card */}
-      <Link to="/settings/shop" className="block mb-5 group">
-        <motion.div
-          custom={1} variants={fadeUp} initial="hidden" animate="visible"
-          className="relative overflow-hidden bg-accent-dark rounded-[20px] px-5 py-5 flex items-center gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.12)] transition-transform duration-150 active:scale-[0.99]"
+        <Link
+          to="/settings/shop"
+          className="block mb-6 group"
+          aria-label={`Open ${shopName} shop profile`}
         >
-          <div className="pointer-events-none absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/5" />
-          <div className="pointer-events-none absolute -bottom-12 -right-2 w-40 h-40 rounded-full bg-white/[0.03]" />
+          <motion.div
+            custom={1}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="
+              relative overflow-hidden
+              rounded-[22px]
+              bg-[#2A2320]
+              border border-white/[0.08]
+              px-5 py-[18px]
+              flex items-center gap-4
+              shadow-[0_8px_30px_rgba(42,35,32,0.14)]
+              transition-all duration-200 ease-out
+              md:group-hover:-translate-y-0.5
+              md:group-hover:shadow-[0_12px_36px_rgba(42,35,32,0.18)]
+              active:scale-[0.99]
+            "
+          >
+            {/* Logo */}
+            <div
+              className="
+                relative
+                w-[54px] h-[54px]
+                rounded-[16px]
+                bg-white/[0.08]
+                border border-white/[0.10]
+                flex items-center justify-center
+                shrink-0 overflow-hidden
+                shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]
+              "
+            >
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={`${shopName} logo`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-[20px] font-display font-semibold text-white">
+                  {shopName.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
 
-          <div className="relative w-14 h-14 rounded-full bg-white/15 ring-2 ring-white/20 flex items-center justify-center text-xl font-bold text-white shrink-0 overflow-hidden">
-            {logoUrl ? (
-              <img src={logoUrl} alt={`${shopName} logo`} className="w-full h-full object-cover" />
-            ) : (
-              shopName.charAt(0).toUpperCase()
-            )}
-          </div>
-          <div className="relative min-w-0 flex-1">
-            <p className="text-white font-semibold text-[18px] truncate">{shopName}</p>
-            {role && (
-              <p className="text-white/60 text-[13px] capitalize">{role}</p>
-            )}
-          </div>
-          <ChevronRight
-            size={16}
-            className="relative text-white/40 group-active:text-white/70 transition-colors duration-150 shrink-0"
-          />
-        </motion.div>
-      </Link>
+            {/* Identity */}
+            <div className="min-w-0 flex-1">
+              <p
+                className="
+                  mb-1
+                  text-[10px]
+                  font-semibold
+                  uppercase
+                  tracking-[0.16em]
+                  text-white/40
+                "
+              >
+                Shop profile
+              </p>
+
+              <p
+                className="
+                  truncate
+                  font-display
+                  text-[18px]
+                  font-semibold
+                  leading-tight
+                  tracking-[-0.01em]
+                  text-white
+                "
+              >
+                {shopName}
+              </p>
+
+              {role && (
+                <p className="mt-1 text-[12px] capitalize text-white/50">
+                  {role}
+                </p>
+              )}
+            </div>
+
+            {/* Navigation */}
+            <div
+              className="
+                w-9 h-9
+                rounded-full
+                border border-white/[0.08]
+                bg-white/[0.05]
+                flex items-center justify-center
+                shrink-0
+                text-white/45
+                transition-all duration-200
+                group-hover:bg-white/[0.10]
+                group-hover:text-white/80
+                group-hover:border-white/[0.12]
+              "
+            >
+              <ChevronRight size={17} strokeWidth={1.8} />
+            </div>
+          </motion.div>
+        </Link>
 
       {/* Channels */}
       <motion.section custom={2} variants={fadeUp} initial="hidden" animate="visible" className="mb-5">
