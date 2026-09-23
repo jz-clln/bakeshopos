@@ -136,6 +136,19 @@ export async function setConversationHandler(
   if (error) throw error;
 }
 
+/**
+ * Removes a message from this shop's own record/view only. This does
+ * NOT un-send or retract it from the customer's actual Messenger
+ * inbox — Meta doesn't expose that capability to Pages via the API,
+ * only to personal accounts, manually, within a 10-minute window (see
+ * notify-order-approved's comments for the related 24-hour-window
+ * research). This is purely a "clean up my own view" action.
+ */
+export async function deleteMessage(messageId: string): Promise<void> {
+  const { error } = await supabase.from('messages').delete().eq('id', messageId);
+  if (error) throw new Error(error.message);
+}
+
 export interface SendMessageResult {
   sent: boolean;
   reason?: string;
