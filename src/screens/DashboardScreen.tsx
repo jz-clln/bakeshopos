@@ -3,55 +3,103 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, MotionConfig } from 'framer-motion';
-import { Plus, ClipboardList, Clock, MessageCircle, ArrowUpRight, Bell } from 'lucide-react';
+
+import {
+  Plus,
+  ClipboardList,
+  Clock,
+  MessageCircle,
+  ArrowUpRight,
+  Bell,
+  Check,
+} from 'lucide-react';
+
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { Switch } from '../components/ui/Switch';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
+
 import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
 import { formatPrice } from '../lib/currency';
-import { fetchShopProfile, setAcceptingOrders } from '../api/shopProfile';
+
+import {
+  fetchShopProfile,
+  setAcceptingOrders,
+} from '../api/shopProfile';
+
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useHandoffCount } from '../hooks/useHandoffCount';
+
 import type { OrderStatus } from '../types/catalog';
 
-/* Motion — spring-based throughout, matching NavBar.tsx/Sidebar.tsx,
-   rather than the eased tweens this screen used before. One shared
-   motion language across the whole shell, not two different ones. */
-const SPRING = { type: 'spring', stiffness: 380, damping: 30, mass: 0.8 } as const;
+/* ============================================================
+   MOTION
+============================================================ */
+
+const SPRING = {
+  type: 'spring',
+  stiffness: 380,
+  damping: 30,
+  mass: 0.8,
+} as const;
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: {
+    opacity: 0,
+    y: 8,
+  },
+
   visible: (i: number) => ({
-    opacity: 1, y: 0,
-    transition: { ...SPRING, delay: i * 0.06 },
+    opacity: 1,
+    y: 0,
+
+    transition: {
+      ...SPRING,
+      delay: i * 0.05,
+    },
   }),
 };
 
 const listContainer = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.07 } },
+
+  visible: {
+    transition: {
+      staggerChildren: 0.05,
+    },
+  },
 };
 
 const listRow = {
-  hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { ...SPRING } },
+  hidden: {
+    opacity: 0,
+    y: 6,
+  },
+
+  visible: {
+    opacity: 1,
+    y: 0,
+
+    transition: {
+      ...SPRING,
+    },
+  },
 };
 
-/* Skeleton shimmer fills — a wide gradient (400% background-size)
-   whose position gets animated by the `shimmer` keyframe in
-   tailwind.config.js, so loading blocks show a moving highlight
-   instead of Tailwind's default flat opacity blink (`animate-pulse`).
-   Two variants since skeletons sit on both light (white/platinum)
-   and dark (accent-dark) surfaces in this screen — same accent-dark
-   ink tint used everywhere else in the app, just at different
-   opacities depending on what it needs to show up against. */
-const SHIMMER_LIGHT =
-  'bg-[linear-gradient(90deg,rgba(42,35,32,0.07)_25%,rgba(42,35,32,0.14)_37%,rgba(42,35,32,0.07)_63%)] bg-[length:400%_100%] animate-shimmer';
-const SHIMMER_DARK =
-  'bg-[linear-gradient(90deg,rgba(255,255,255,0.09)_25%,rgba(255,255,255,0.20)_37%,rgba(255,255,255,0.09)_63%)] bg-[length:400%_100%] animate-shimmer';
+/* ============================================================
+   LOADING SURFACES
+============================================================ */
 
-/* Types */
+const SHIMMER_LIGHT =
+  'bg-[linear-gradient(90deg,rgba(42,35,32,0.07)_25%,rgba(42,35,32,0.14)_37%,rgba(42,35,32,0.07)_63%)] bg-[length:400%_100%] animate-shimmer motion-reduce:animate-none';
+
+const SHIMMER_DARK =
+  'bg-[linear-gradient(90deg,rgba(255,255,255,0.09)_25%,rgba(255,255,255,0.20)_37%,rgba(255,255,255,0.09)_63%)] bg-[length:400%_100%] animate-shimmer motion-reduce:animate-none';
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 interface OrderRow {
   id: string;
   customer_name: string;
@@ -69,52 +117,73 @@ interface DashboardStats {
   completedOrders: number;
 }
 
-// Shortened pipeline: inquiry -> quote -> confirmed (once paid) ->
-// in_production -> completed, cancelled reachable from any
-// non-terminal status, refunded reachable from completed or
-// cancelled. See supabase/migrations/20260919_shorten_order_pipeline.sql.
+/* ============================================================
+   ORDER STATUS
+============================================================ */
+
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  inquiry:       'Inquiry',
-  quote:         'Quote',
-  confirmed:     'Confirmed',
+  inquiry: 'Inquiry',
+  quote: 'Quote',
+  confirmed: 'Confirmed',
   in_production: 'In production',
-  completed:     'Done',
-  cancelled:     'Cancelled',
-  refunded:      'Refunded',
+  completed: 'Done',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded',
 };
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  inquiry:       'bg-platinum/60 text-olive',
-  quote:         'bg-accent-light/40 text-accent-dark',
-  confirmed:     'bg-accent-light/60 text-accent-dark',
+  inquiry: 'bg-platinum/60 text-olive',
+  quote: 'bg-accent-light/40 text-accent-dark',
+  confirmed: 'bg-accent-light/60 text-accent-dark',
   in_production: 'bg-platinum text-olive',
-  completed:     'bg-green-50 text-green-700',
-  cancelled:     'bg-red-50 text-red-600',
-  refunded:      'bg-gray-100 text-gray-600',
+  completed: 'bg-green-50 text-green-700',
+  cancelled: 'bg-red-50 text-red-600',
+  refunded: 'bg-gray-100 text-gray-600',
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
 
 function initials(name: string) {
   const p = (name ?? '').trim().split(/\s+/);
-  return ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase();
+
+  return (
+    (p[0]?.[0] ?? '') +
+    (p[1]?.[0] ?? '')
+  ).toUpperCase();
 }
 
 function todayRange() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
+
   const end = new Date();
   end.setHours(23, 59, 59, 999);
-  return { start: start.toISOString(), end: end.toISOString() };
+
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
+  };
 }
 
-/* Screen */
+/* ============================================================
+   DASHBOARD
+============================================================ */
+
 export function DashboardScreen() {
   const { organizationId, session } = useAuth();
 
-  // Renamed on destructure — DashboardScreen already has its own
-  // `loading` state for the stats/orders fetch below, so this avoids
-  // shadowing it.
-  const { status: pushStatus, loading: pushStatusLoading } = usePushNotifications();
+  const {
+    status: pushStatus,
+    loading: pushStatusLoading,
+  } = usePushNotifications();
+
   const handoffCount = useHandoffCount(organizationId);
+
+  /* ==========================================================
+     STATE
+  ========================================================== */
 
   const [stats, setStats] = useState<DashboardStats>({
     totalOrders: 0,
@@ -123,41 +192,74 @@ export function DashboardScreen() {
     unreadMessages: 0,
     completedOrders: 0,
   });
+
   const [recentOrders, setRecentOrders] = useState<OrderRow[]>([]);
+
   const [loading, setLoading] = useState(true);
 
-  const [acceptingOrders, setAcceptingOrdersState] = useState(true);
-  const [acceptingOrdersLoaded, setAcceptingOrdersLoaded] = useState(false);
-  const [togglingAccepting, setTogglingAccepting] = useState(false);
-  const [acceptingOrdersError, setAcceptingOrdersError] = useState<string | null>(null);
+  const [acceptingOrders, setAcceptingOrdersState] =
+    useState(true);
+
+  const [acceptingOrdersLoaded, setAcceptingOrdersLoaded] =
+    useState(false);
+
+  const [togglingAccepting, setTogglingAccepting] =
+    useState(false);
+
+  const [acceptingOrdersError, setAcceptingOrdersError] =
+    useState<string | null>(null);
 
   const [shopName, setShopName] = useState<string>(
-    session?.user?.user_metadata?.organization_name?.trim() || 'there'
+    session?.user?.user_metadata?.organization_name?.trim() ||
+      'there'
   );
 
+  /* ==========================================================
+     GREETING
+  ========================================================== */
+
   const hour = new Date().getHours();
+
   const greeting =
-    hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    hour < 12
+      ? 'Good morning'
+      : hour < 17
+        ? 'Good afternoon'
+        : 'Good evening';
+
+  /* ==========================================================
+     DASHBOARD DATA
+  ========================================================== */
 
   useEffect(() => {
     if (!organizationId) return;
 
     let cancelled = false;
 
-    async function loadDashboardData(): Promise<{ stats: DashboardStats; recentOrders: OrderRow[] }> {
+    async function loadDashboardData(): Promise<{
+      stats: DashboardStats;
+      recentOrders: OrderRow[];
+    }> {
       const { start, end } = todayRange();
 
       const { data: todayOrders } = await supabase
         .from('order_list_view')
-        .select('id, customer_name, summary, total_amount, status, created_at')
+        .select(
+          'id, customer_name, summary, total_amount, status, created_at'
+        )
         .eq('organization_id', organizationId)
         .gte('created_at', start)
         .lte('created_at', end)
-        .order('created_at', { ascending: false });
+        .order('created_at', {
+          ascending: false,
+        });
 
       const orders = (todayOrders ?? []) as OrderRow[];
 
-      const { data: todayPayments, error: paymentsError } = await supabase
+      const {
+        data: todayPayments,
+        error: paymentsError,
+      } = await supabase
         .from('payments')
         .select('amount_paid')
         .eq('organization_id', organizationId)
@@ -166,10 +268,16 @@ export function DashboardScreen() {
         .lte('verified_at', end);
 
       if (paymentsError) {
-        console.error('Failed to load today\'s payments:', paymentsError);
+        console.error(
+          "Failed to load today's payments:",
+          paymentsError
+        );
       }
 
-      const { data: refundedOrdersToday, error: refundsError } = await supabase
+      const {
+        data: refundedOrdersToday,
+        error: refundsError,
+      } = await supabase
         .from('orders')
         .select('id')
         .eq('organization_id', organizationId)
@@ -178,22 +286,40 @@ export function DashboardScreen() {
         .lte('updated_at', end);
 
       if (refundsError) {
-        console.error('Failed to load today\'s refunds:', refundsError);
+        console.error(
+          "Failed to load today's refunds:",
+          refundsError
+        );
       }
 
       let refundedAmountToday = 0;
-      if (refundedOrdersToday && refundedOrdersToday.length > 0) {
-        const refundedOrderIds = refundedOrdersToday.map((o) => o.id);
-        const { data: refundedPayments, error: refundedPaymentsError } = await supabase
+
+      if (
+        refundedOrdersToday &&
+        refundedOrdersToday.length > 0
+      ) {
+        const refundedOrderIds = refundedOrdersToday.map(
+          (o) => o.id
+        );
+
+        const {
+          data: refundedPayments,
+          error: refundedPaymentsError,
+        } = await supabase
           .from('payments')
           .select('amount_paid')
           .in('order_id', refundedOrderIds)
           .eq('status', 'verified');
 
         if (refundedPaymentsError) {
-          console.error('Failed to load payments for refunded orders:', refundedPaymentsError);
+          console.error(
+            'Failed to load payments for refunded orders:',
+            refundedPaymentsError
+          );
         } else {
-          refundedAmountToday = (refundedPayments ?? []).reduce(
+          refundedAmountToday = (
+            refundedPayments ?? []
+          ).reduce(
             (sum, p) => sum + (p.amount_paid ?? 0),
             0
           );
@@ -201,11 +327,18 @@ export function DashboardScreen() {
       }
 
       const revenueToday =
-        (todayPayments ?? []).reduce((sum, p) => sum + (p.amount_paid ?? 0), 0) -
-        refundedAmountToday;
+        (todayPayments ?? []).reduce(
+          (sum, p) => sum + (p.amount_paid ?? 0),
+          0
+        ) - refundedAmountToday;
 
-      const pendingPickups = orders.filter((o) => o.status === 'in_production').length;
-      const completedOrders = orders.filter((o) => o.status === 'completed').length;
+      const pendingPickups = orders.filter(
+        (o) => o.status === 'in_production'
+      ).length;
+
+      const completedOrders = orders.filter(
+        (o) => o.status === 'completed'
+      ).length;
 
       return {
         stats: {
@@ -215,395 +348,1047 @@ export function DashboardScreen() {
           unreadMessages: 0,
           completedOrders,
         },
+
         recentOrders: orders.slice(0, 4),
       };
     }
 
+    /* ========================================================
+       REFRESH
+    ======================================================== */
+
     async function refresh(showLoading: boolean) {
-      if (showLoading) setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
+
       const result = await loadDashboardData();
+
       if (cancelled) return;
+
       setStats(result.stats);
+
       setRecentOrders(result.recentOrders);
-      if (showLoading) setLoading(false);
+
+      if (showLoading) {
+        setLoading(false);
+      }
     }
 
     refresh(true);
 
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    /* ========================================================
+       REALTIME
+    ======================================================== */
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null =
+      null;
+
     function scheduleRefresh() {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => refresh(false), 400);
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
+      debounceTimer = setTimeout(
+        () => refresh(false),
+        400
+      );
     }
 
     const channel = supabase
       .channel(`dashboard-${organizationId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `organization_id=eq.${organizationId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `organization_id=eq.${organizationId}`,
+        },
         scheduleRefresh
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'payments', filter: `organization_id=eq.${organizationId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payments',
+          filter: `organization_id=eq.${organizationId}`,
+        },
         scheduleRefresh
       )
       .subscribe();
 
     return () => {
       cancelled = true;
-      if (debounceTimer) clearTimeout(debounceTimer);
+
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
       supabase.removeChannel(channel);
     };
   }, [organizationId]);
 
+  /* ==========================================================
+     SHOP PROFILE
+  ========================================================== */
+
   useEffect(() => {
     if (!organizationId) return;
+
     fetchShopProfile(organizationId)
       .then((p) => {
         setAcceptingOrdersState(p.accepting_orders);
+
         setAcceptingOrdersLoaded(true);
-        if (p.name?.trim()) setShopName(p.name.trim());
+
+        if (p.name?.trim()) {
+          setShopName(p.name.trim());
+        }
       })
       .catch((err) => {
-        console.error('Failed to load shop status:', err);
+        console.error(
+          'Failed to load shop status:',
+          err
+        );
+
         setAcceptingOrdersLoaded(true);
       });
   }, [organizationId]);
 
+  /* ==========================================================
+     ACCEPTING ORDERS
+  ========================================================== */
+
   async function handleToggleAccepting() {
     if (!organizationId || togglingAccepting) return;
+
     const next = !acceptingOrders;
+
     setAcceptingOrdersState(next);
+
     setAcceptingOrdersError(null);
+
     setTogglingAccepting(true);
+
     try {
-      await setAcceptingOrders(organizationId, next);
+      await setAcceptingOrders(
+        organizationId,
+        next
+      );
     } catch (err) {
-      console.error('Failed to update accepting orders status:', err);
+      console.error(
+        'Failed to update accepting orders status:',
+        err
+      );
+
       setAcceptingOrdersState(!next);
+
       setAcceptingOrdersError(
-        err instanceof Error ? err.message : 'Could not update. Please try again.'
+        err instanceof Error
+          ? err.message
+          : 'Could not update. Please try again.'
       );
     } finally {
       setTogglingAccepting(false);
     }
   }
 
+  /* ==========================================================
+     FULFILLMENT
+  ========================================================== */
+
   const pct =
     stats.totalOrders > 0
-      ? Math.round((stats.completedOrders / stats.totalOrders) * 100)
+      ? Math.round(
+          (stats.completedOrders / stats.totalOrders) * 100
+        )
       : 0;
+
+  /* ==========================================================
+     VIEW
+  ========================================================== */
 
   return (
     <ScreenShell>
       <MotionConfig reducedMotion="user">
-        {/* Header */}
-        <motion.div
-          className="flex items-start justify-between gap-4 mb-4 md:mb-3"
-          custom={0} variants={fadeUp} initial="hidden" animate="visible"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold tracking-widest text-olive uppercase mb-1">Today</p>
-            <h1 className="font-display text-[22px] sm:text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark leading-tight truncate">
-              {greeting}, {shopName} 👋
-            </h1>
+        <div className="mx-auto w-full min-w-0 max-w-[1320px] pb-5">
+
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
+          <motion.header
+            custom={0}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="mb-4 flex items-start justify-between gap-3 sm:mb-5"
+          >
+
+            {/* Greeting */}
+
+            <div className="min-w-0 flex-1">
+
+              <div className="mb-1.5 flex items-center gap-2">
+
+                <span className="h-1 w-1 shrink-0 rounded-full bg-accent-dark/45" />
+
+                <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-olive/65">
+                  Your overview
+                </span>
+
+              </div>
+
+              <h1 className="max-w-full font-display text-[20px] font-bold leading-[1.2] tracking-[-0.035em] text-accent-dark sm:text-[23px] lg:overflow-hidden lg:text-ellipsis lg:whitespace-nowrap lg:text-[clamp(18px,1.8vw,26px)]">
+
+                {greeting},{' '}
+
+                <span className="block lg:inline">
+                  {shopName}
+                </span>
+
+              </h1>
+
+            </div>
+
+            {/* Header actions */}
+
+            <div className="flex shrink-0 items-center gap-2 pt-0.5">
+
+              {/* Notifications */}
+
+              <Link
+                to={
+                  handoffCount > 0
+                    ? '/messages'
+                    : '/settings/notifications'
+                }
+                aria-label={
+                  handoffCount > 0
+                    ? `${handoffCount} conversations need you`
+                    : 'Notifications'
+                }
+                className="group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-platinum/60 bg-white text-olive shadow-[0_2px_8px_rgba(0,0,0,0.035)] transition-all duration-150 hover:bg-platinum/20 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25"
+              >
+
+                <Bell
+                  size={16}
+                  strokeWidth={1.8}
+                />
+
+                {handoffCount > 0 ? (
+
+                  <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-white">
+                    {handoffCount > 9
+                      ? '9+'
+                      : handoffCount}
+                  </span>
+
+                ) : (
+
+                  !pushStatusLoading &&
+                  pushStatus !== 'on' && (
+
+                    <span className="absolute right-[8px] top-[7px] h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
+
+                  )
+
+                )}
+
+              </Link>
+
+              {/* Desktop new order */}
+
+              <Link
+                to="/orders/new"
+                className="hidden h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent-dark px-4 text-[12px] font-semibold text-white shadow-[0_3px_10px_rgba(42,35,32,0.13)] transition-all duration-150 hover:bg-accent-dark/90 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25 focus-visible:ring-offset-2 sm:inline-flex"
+              >
+
+                <Plus
+                  size={14}
+                  strokeWidth={2.2}
+                />
+
+                New order
+
+              </Link>
+
+            </div>
+
+          </motion.header>
+
+          {/* ==================================================
+              SHOP AVAILABILITY
+          ================================================== */}
+
+          <div className="mb-3">
+
+            {!acceptingOrdersLoaded ? (
+
+              <div
+                aria-hidden="true"
+                className="rounded-[16px] border border-platinum/60 bg-white px-4 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.025)]"
+              >
+
+                <div className="flex items-center justify-between gap-3">
+
+                  <div className="flex min-w-0 items-center gap-2.5">
+
+                    <span
+                      className={`h-8 w-8 shrink-0 rounded-[10px] ${SHIMMER_LIGHT}`}
+                    />
+
+                    <div className="space-y-1.5">
+
+                      <div
+                        className={`h-3 w-28 rounded-full ${SHIMMER_LIGHT}`}
+                      />
+
+                      <div
+                        className={`h-2 w-24 rounded-full ${SHIMMER_LIGHT}`}
+                      />
+
+                    </div>
+
+                  </div>
+
+                  <span
+                    className={`h-6 w-11 shrink-0 rounded-full ${SHIMMER_LIGHT}`}
+                  />
+
+                </div>
+
+              </div>
+
+            ) : (
+
+              <motion.div
+                custom={1}
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                className={`overflow-hidden rounded-[16px] border px-4 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.025)] transition-colors duration-200 ${
+                  acceptingOrders
+                    ? 'border-platinum/60 bg-white'
+                    : 'border-rose-200/70 bg-rose-50/60'
+                }`}
+              >
+
+                <div className="flex items-center justify-between gap-3">
+
+                  {/* Status information */}
+
+                  <div className="flex min-w-0 items-center gap-2.5">
+
+                    <div
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${
+                        acceptingOrders
+                          ? 'bg-emerald-50'
+                          : 'bg-rose-100'
+                      }`}
+                    >
+
+                      <span
+                        className={`relative flex h-2 w-2 rounded-full ${
+                          acceptingOrders
+                            ? 'bg-emerald-500'
+                            : 'bg-rose-500'
+                        }`}
+                      >
+
+                        <span
+                          className={`absolute inset-0 rounded-full opacity-30 motion-safe:animate-ping ${
+                            acceptingOrders
+                              ? 'bg-emerald-500'
+                              : 'bg-rose-500'
+                          }`}
+                        />
+
+                      </span>
+
+                    </div>
+
+                    <div className="min-w-0">
+
+                      <p
+                        className={`text-[12px] font-semibold leading-4 ${
+                          acceptingOrders
+                            ? 'text-accent-dark'
+                            : 'text-rose-700'
+                        }`}
+                      >
+                        {acceptingOrders
+                          ? 'Accepting orders'
+                          : 'Not accepting orders'}
+                      </p>
+
+                      <p
+                        className={`mt-0.5 text-[10px] leading-4 ${
+                          acceptingOrders
+                            ? 'text-olive/55'
+                            : 'text-rose-600/75'
+                        }`}
+                      >
+                        {acceptingOrders
+                          ? 'Your shop is open for business.'
+                          : 'Customers messaging you will be told you are closed.'}
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                  {/* Availability switch */}
+
+                  <div className="shrink-0">
+
+                    <Switch
+                      checked={acceptingOrders}
+                      onChange={handleToggleAccepting}
+                      ariaLabel="Accepting orders"
+                    />
+
+                  </div>
+
+                </div>
+
+                {acceptingOrdersError && (
+
+                  <p className="mt-2.5 border-t border-rose-200/70 pt-2.5 text-[11px] leading-4 text-red-600">
+                    {acceptingOrdersError}
+                  </p>
+
+                )}
+
+              </motion.div>
+
+            )}
+
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Notification bell — the only screen this appears on. A
-                pending handoff is more urgent and more actionable than
-                "push isn't enabled," so when both are true the numeric
-                badge wins and the bell routes to Messages instead of
-                Settings — tapping it should take you straight to the
-                thing that needs you. */}
-            <Link
-              to={handoffCount > 0 ? '/messages' : '/settings/notifications'}
-              className="relative w-11 h-11 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)] flex items-center justify-center transition-transform duration-150 active:scale-90"
-              aria-label={handoffCount > 0 ? `${handoffCount} conversations need you` : 'Notifications'}
+          {/* ==================================================
+              PRIMARY DASHBOARD
+
+              Revenue: compact full-width hero.
+              Metrics: three cards on one row at every screen size.
+          ================================================== */}
+
+          <div className="mb-3 flex min-w-0 flex-col gap-3">
+
+            {/* ==================================================
+                REVENUE HERO
+            ================================================== */}
+
+            <motion.div
+              custom={2}
+              variants={fadeUp}
+              initial="hidden"
+              animate="visible"
+              aria-busy={loading}
+              className="relative isolate min-w-0 overflow-hidden rounded-[20px] bg-accent-dark px-4 py-4 text-white shadow-[0_8px_24px_rgba(42,35,32,0.13)] sm:px-5 sm:py-4"
             >
-              <Bell size={17} className="text-olive" />
-              {handoffCount > 0 ? (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
-                  {handoffCount > 9 ? '9+' : handoffCount}
-                </span>
-              ) : (
-                !pushStatusLoading &&
-                pushStatus !== 'on' && (
-                  <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
-                )
+
+              {/* Subtle decorative lighting */}
+
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-white/[0.035] blur-[50px]"
+              />
+
+              {/* Top row */}
+
+              <div className="relative flex items-start justify-between gap-3">
+
+                <div className="min-w-0">
+
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-white/45">
+                    Financial overview
+                  </p>
+
+                  <h2 className="mt-1 font-display text-[12px] font-semibold tracking-[-0.01em] text-white/90 sm:text-[13px]">
+                    Revenue today
+                  </h2>
+
+                </div>
+
+                {/* Today indicator */}
+
+                <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1">
+
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+
+                  <span className="text-[9px] font-semibold text-white/75">
+                    Today
+                  </span>
+
+                </div>
+
+              </div>
+
+              {/* ==================================================
+                  REVENUE AMOUNT
+
+                  Reduced vertical spacing.
+              ================================================== */}
+
+              <div className="relative mb-3 mt-3 min-w-0 sm:mb-4 sm:mt-4">
+
+                {loading ? (
+
+                  <div
+                    aria-hidden="true"
+                    className={`h-9 w-36 max-w-full rounded-[8px] sm:h-10 sm:w-44 ${SHIMMER_DARK}`}
+                  />
+
+                ) : (
+
+                  <p className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-display text-[clamp(1.75rem,5vw,2.625rem)] font-bold leading-[1.1] tracking-[-0.04em] text-white">
+                    <AnimatedNumber
+                      value={stats.revenueToday}
+                      format={formatPrice}
+                    />
+                  </p>
+
+                )}
+
+                <p className="mt-1.5 text-[10px] font-medium leading-4 text-white/45">
+                  Verified payments less refunds
+                </p>
+
+              </div>
+
+              {/* ==================================================
+                  FULFILLMENT
+              ================================================== */}
+
+              <div className="relative border-t border-white/10 pt-3">
+
+                <div className="mb-2 flex items-center justify-between gap-3">
+
+                  <div className="flex min-w-0 items-center gap-2">
+
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.09]">
+
+                      <Check
+                        size={11}
+                        strokeWidth={2.2}
+                        className="text-white/75"
+                      />
+
+                    </div>
+
+                    <span className="text-[10px] font-medium text-white/60">
+                      Order fulfillment
+                    </span>
+
+                  </div>
+
+                  {loading ? (
+
+                    <span
+                      aria-hidden="true"
+                      className={`h-2.5 w-7 shrink-0 rounded-full ${SHIMMER_DARK}`}
+                    />
+
+                  ) : (
+
+                    <span className="shrink-0 text-[10px] font-semibold tabular-nums text-white/85">
+                      {pct}%
+                    </span>
+
+                  )}
+
+                </div>
+
+                {/* Progress track */}
+
+                <div className="h-[4px] w-full overflow-hidden rounded-full bg-white/[0.13]">
+
+                  <motion.div
+                    className="h-full rounded-full bg-white"
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: `${pct}%`,
+                    }}
+                    transition={{
+                      ...SPRING,
+                      delay: loading ? 0.3 : 0,
+                    }}
+                  />
+
+                </div>
+
+                {/* Progress caption */}
+
+                {loading ? (
+
+                  <div
+                    aria-hidden="true"
+                    className={`mt-2 h-2.5 w-32 max-w-full rounded-full ${SHIMMER_DARK}`}
+                  />
+
+                ) : (
+
+                  <p className="mt-2 text-[10px] leading-4 text-white/45">
+                    {stats.completedOrders} of {stats.totalOrders}{' '}
+                    orders completed today
+                  </p>
+
+                )}
+
+              </div>
+
+            </motion.div>
+
+            {/* ==================================================
+                SUPPORTING METRICS
+
+                Always three columns:
+                Orders | Pending | Messages
+
+                Compact on mobile, roomier on desktop.
+            ================================================== */}
+
+            <div className="grid min-w-0 grid-cols-3 gap-2 sm:gap-3">
+
+              {[
+                {
+                  label: 'Orders',
+                  description: 'Total today',
+                  value: stats.totalOrders,
+                  icon: ClipboardList,
+                  custom: 3,
+                  to: undefined,
+                },
+                {
+                  label: 'Pending',
+                  description: 'In production',
+                  value: stats.pendingPickups,
+                  icon: Clock,
+                  custom: 4,
+                  to: undefined,
+                },
+                {
+                  label: 'Messages',
+                  description: 'Unread messages',
+                  value: stats.unreadMessages,
+                  icon: MessageCircle,
+                  custom: 5,
+                  to: '/messages',
+                },
+              ].map(
+                ({
+                  label,
+                  description,
+                  value,
+                  icon: Icon,
+                  custom,
+                  to,
+                }) => {
+
+                  const isLink = Boolean(to);
+
+                  const inner = (
+
+                    <motion.div
+                      custom={custom}
+                      variants={fadeUp}
+                      initial="hidden"
+                      animate="visible"
+                      aria-busy={loading}
+                      className={`group flex h-full min-w-0 flex-col rounded-[16px] border border-platinum/60 bg-white p-2.5 shadow-[0_2px_10px_rgba(42,35,32,0.035)] sm:rounded-[18px] sm:p-4 md:flex-row md:items-center md:gap-3 ${
+                        isLink
+                          ? 'cursor-pointer transition-shadow duration-150 hover:shadow-[0_4px_14px_rgba(42,35,32,0.07)]'
+                          : 'cursor-default'
+                      }`}
+                    >
+
+                      {/* Icon */}
+
+                      <div className="mb-2 flex min-w-0 items-center justify-between md:mb-0">
+
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[#F2EDE6] text-accent-dark sm:h-8 sm:w-8 sm:rounded-[10px]">
+
+                          <Icon
+                            size={14}
+                            strokeWidth={1.8}
+                          />
+
+                        </div>
+
+                        {isLink && (
+
+                          <ArrowUpRight
+                            size={11}
+                            strokeWidth={2}
+                            className="shrink-0 text-olive/40 md:hidden"
+                          />
+
+                        )}
+
+                      </div>
+
+                      {/* Value and label */}
+
+                      <div className="min-w-0 flex-1">
+
+                        {loading ? (
+
+                          <div
+                            aria-hidden="true"
+                            className={`mb-1 h-5 w-7 max-w-full rounded-[5px] ${SHIMMER_LIGHT}`}
+                          />
+
+                        ) : (
+
+                          <p className="min-w-0 truncate font-display text-[19px] font-bold leading-none tracking-[-0.03em] tabular-nums text-accent-dark sm:text-[21px]">
+                            <AnimatedNumber
+                              value={value}
+                            />
+                          </p>
+
+                        )}
+
+                        <p className="mt-1 truncate text-[10px] font-semibold leading-4 text-accent-dark sm:text-[12px]">
+                          {label}
+                        </p>
+
+                        {/* Hidden on narrow phones to keep
+                            all three cards comfortably on one row. */}
+
+                        <p className="mt-0.5 hidden truncate text-[10px] leading-4 text-olive/50 sm:block">
+                          {description}
+                        </p>
+
+                      </div>
+
+                      {/* Desktop link indicator */}
+
+                      {isLink && (
+
+                        <ArrowUpRight
+                          size={13}
+                          strokeWidth={1.8}
+                          className="hidden shrink-0 text-olive/35 lg:block"
+                        />
+
+                      )}
+
+                    </motion.div>
+
+                  );
+
+                  return to ? (
+
+                    <Link
+                      key={label}
+                      to={to}
+                      className="block h-full min-w-0 rounded-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25"
+                    >
+                      {inner}
+                    </Link>
+
+                  ) : (
+
+                    <div
+                      key={label}
+                      className="h-full min-w-0"
+                    >
+                      {inner}
+                    </div>
+
+                  );
+
+                }
               )}
-            </Link>
+
+            </div>
+
+          </div>
+
+          {/* ==================================================
+              RECENT ORDERS
+          ================================================== */}
+
+          <motion.section
+            custom={6}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="min-w-0 overflow-hidden rounded-[20px] border border-platinum/60 bg-white shadow-[0_3px_14px_rgba(0,0,0,0.03)]"
+          >
+
+            {/* Section header */}
+
+            <div className="flex min-h-[62px] items-center justify-between gap-3 px-4 py-3 sm:px-5">
+
+              <div className="min-w-0">
+
+                <div className="flex items-center gap-2">
+
+                  <h2 className="font-display text-[14px] font-semibold tracking-[-0.02em] text-accent-dark">
+                    Recent orders
+                  </h2>
+
+                  <span
+                    className="relative flex h-1.5 w-1.5 shrink-0"
+                    title="Live"
+                  >
+
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40 motion-safe:animate-ping" />
+
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+
+                  </span>
+
+                </div>
+
+                <p className="mt-0.5 text-[10px] text-olive/55">
+                  Your latest activity today
+                </p>
+
+              </div>
+
+              {/* View all */}
+
+              <Link
+                to="/orders"
+                className="group inline-flex min-h-[40px] shrink-0 items-center justify-center gap-1 rounded-full px-2 text-[11px] font-semibold text-accent-dark transition-colors duration-150 hover:bg-platinum/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/20"
+              >
+
+                View all
+
+                <ArrowUpRight
+                  size={12}
+                  strokeWidth={2}
+                  className="text-olive/60 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                />
+
+              </Link>
+
+            </div>
+
+            {/* Divider */}
+
+            <div className="h-px bg-platinum/50" />
+
+            {/* ==================================================
+                LOADING
+            ================================================== */}
+
+            {loading ? (
+
+              <div
+                className="divide-y divide-platinum/45"
+                aria-busy="true"
+                aria-label="Loading recent orders"
+              >
+
+                {[0, 1, 2, 3].map((i) => (
+
+                  <div
+                    key={i}
+                    className="flex min-h-[64px] items-center gap-3 px-4 py-2.5 sm:px-5"
+                  >
+
+                    <div
+                      className={`h-9 w-9 shrink-0 rounded-[11px] ${SHIMMER_LIGHT}`}
+                    />
+
+                    <div className="min-w-0 flex-1 space-y-1.5">
+
+                      <div
+                        className={`h-2.5 w-24 max-w-full rounded-full ${SHIMMER_LIGHT}`}
+                      />
+
+                      <div
+                        className={`h-2 w-36 max-w-full rounded-full ${SHIMMER_LIGHT}`}
+                      />
+
+                    </div>
+
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+
+                      <div
+                        className={`h-2.5 w-14 rounded-full ${SHIMMER_LIGHT}`}
+                      />
+
+                      <div
+                        className={`h-4 w-12 rounded-full ${SHIMMER_LIGHT}`}
+                      />
+
+                    </div>
+
+                  </div>
+
+                ))}
+
+              </div>
+
+            ) : recentOrders.length === 0 ? (
+
+              /* Empty state */
+
+              <div className="flex min-h-[160px] flex-col items-center justify-center px-4 py-7 text-center">
+
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[12px] bg-platinum/40">
+
+                  <ClipboardList
+                    size={17}
+                    strokeWidth={1.7}
+                    className="text-olive"
+                  />
+
+                </div>
+
+                <h3 className="font-display text-[13px] font-semibold text-accent-dark">
+                  A quiet start
+                </h3>
+
+                <p className="mt-1 max-w-[240px] text-[11px] leading-4 text-olive/60">
+                  Your orders for today will appear here as they come in.
+                </p>
+
+                <Link
+                  to="/orders/new"
+                  className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-accent-dark px-4 text-[11px] font-semibold text-white transition-colors duration-150 hover:bg-accent-dark/90 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/25"
+                >
+
+                  <Plus
+                    size={13}
+                    strokeWidth={2.2}
+                  />
+
+                  New order
+
+                </Link>
+
+              </div>
+
+            ) : (
+
+              /* ==================================================
+                  ORDER LIST
+              ================================================== */
+
+              <motion.div
+                className="divide-y divide-platinum/45"
+                variants={listContainer}
+                initial="hidden"
+                animate="visible"
+              >
+
+                {recentOrders.map((order) => (
+
+                  <motion.div
+                    key={order.id}
+                    variants={listRow}
+                    whileTap={{
+                      scale: 0.99,
+                    }}
+                  >
+
+                    <Link
+                      to={`/orders?open=${order.id}`}
+                      className="group flex min-h-[64px] items-center gap-3 px-4 py-2.5 transition-colors duration-150 hover:bg-platinum/[0.12] active:bg-platinum/20 focus-visible:outline-none focus-visible:bg-platinum/25 sm:px-5"
+                    >
+
+                      {/* Customer avatar */}
+
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-accent-light/35 text-[10px] font-bold tracking-[0.03em] text-accent-dark">
+
+                        {initials(order.customer_name)}
+
+                      </div>
+
+                      {/* Customer information */}
+
+                      <div className="min-w-0 flex-1">
+
+                        <p className="truncate text-[12px] font-semibold leading-4 text-accent-dark sm:text-[13px]">
+                          {order.customer_name}
+                        </p>
+
+                        <p className="mt-0.5 truncate text-[10px] leading-4 text-olive/60 sm:text-[11px]">
+                          {order.summary}
+                        </p>
+
+                      </div>
+
+                      {/* Price and status */}
+
+                      <div className="flex min-w-0 max-w-[45%] shrink-0 flex-col items-end gap-1 sm:max-w-none">
+
+                        <span className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-bold tracking-[-0.01em] tabular-nums text-accent-dark sm:text-[13px]">
+                          {formatPrice(order.total_amount)}
+                        </span>
+
+                        <span
+                          className={`max-w-full truncate rounded-full px-2 py-0.5 text-[9px] font-semibold leading-4 ${STATUS_STYLES[order.status]}`}
+                        >
+                          {STATUS_LABEL[order.status]}
+                        </span>
+
+                      </div>
+
+                      {/* Desktop navigation */}
+
+                      <ArrowUpRight
+                        size={13}
+                        strokeWidth={1.8}
+                        className="hidden shrink-0 text-olive/0 transition-all duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-olive/40 md:block"
+                      />
+
+                    </Link>
+
+                  </motion.div>
+
+                ))}
+
+              </motion.div>
+
+            )}
+
+          </motion.section>
+
+          {/* ==================================================
+              MOBILE FLOATING ACTION BUTTON
+          ================================================== */}
+
+          <motion.div
+            initial={{
+              opacity: 0,
+              scale: 0.8,
+            }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+            }}
+            transition={{
+              ...SPRING,
+              delay: 0.4,
+            }}
+            className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-5 z-20 sm:hidden"
+          >
 
             <Link
               to="/orders/new"
-              className="hidden sm:inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+              aria-label="New order"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-dark text-white shadow-[0_8px_22px_rgba(42,35,32,0.22)] ring-1 ring-white/10 transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/30 focus-visible:ring-offset-2"
             >
-              <Plus size={15} strokeWidth={2.5} />
-              New order
+
+              <Plus
+                size={20}
+                strokeWidth={2.2}
+              />
+
             </Link>
-          </div>
-        </motion.div>
 
-        {/* Accepting orders status — skeleton mirrors the real card's
-            layout (status dot, label line, switch) instead of a
-            single flat block, so it reads as "this exact card is
-            loading" rather than a generic placeholder shape. */}
-        {!acceptingOrdersLoaded ? (
-          <div
-            className="rounded-[16px] bg-white px-4 py-3 md:py-2.5 mb-4 md:mb-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
-            aria-hidden="true"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${SHIMMER_LIGHT}`} />
-                <span className={`h-4 w-36 rounded-[6px] ${SHIMMER_LIGHT}`} />
-              </div>
-              <span className={`h-6 w-11 rounded-full shrink-0 ${SHIMMER_LIGHT}`} />
-            </div>
-          </div>
-        ) : (
-          <motion.div
-            custom={1} variants={fadeUp} initial="hidden" animate="visible"
-            className={`rounded-[16px] px-4 py-3 md:py-2.5 mb-4 md:mb-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors duration-200 ${
-              acceptingOrders ? 'bg-white' : 'bg-rose-50'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="relative flex w-2.5 h-2.5 shrink-0">
-                  <span
-                    className={`animate-ping absolute inline-flex w-full h-full rounded-full opacity-60 ${
-                      acceptingOrders ? 'bg-green-400' : 'bg-rose-400'
-                    }`}
-                  />
-                  <span
-                    className={`relative inline-flex w-2.5 h-2.5 rounded-full ${
-                      acceptingOrders
-                        ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.22),0_0_10px_3px_rgba(34,197,94,0.65)]'
-                        : 'bg-rose-400 shadow-[0_0_0_3px_rgba(251,113,133,0.22),0_0_10px_3px_rgba(251,113,133,0.55)]'
-                    }`}
-                  />
-                </span>
-                <div className="min-w-0">
-                  <p className={`text-[14px] font-semibold ${acceptingOrders ? 'text-accent-dark' : 'text-rose-700'}`}>
-                    {acceptingOrders ? 'Accepting orders' : 'Not accepting orders'}
-                  </p>
-                  {!acceptingOrders && !acceptingOrdersError && (
-                    <p className="text-[12px] text-rose-500 leading-snug">
-                      Customers messaging you will be told you are closed.
-                    </p>
-                  )}
-                </div>
-              </div>
-              <Switch
-                checked={acceptingOrders}
-                onChange={handleToggleAccepting}
-                ariaLabel="Accepting orders"
-              />
-            </div>
-            {acceptingOrdersError && (
-              <p className="text-[12px] text-red-600 mt-2 leading-snug">
-                {acceptingOrdersError}
-              </p>
-            )}
-          </motion.div>
-        )}
-
-        {/* Hero + stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-3 mb-4 md:mb-3">
-
-          {/* Hero revenue card */}
-          <motion.div
-            custom={2} variants={fadeUp} initial="hidden" animate="visible"
-            aria-busy={loading}
-            className="lg:col-span-3 relative overflow-hidden rounded-[20px] bg-accent-dark p-6 md:p-5 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
-          >
-            <p className="text-white/60 text-sm font-medium mb-1">Revenue today</p>
-
-            {loading ? (
-              <div className={`h-10 md:h-9 w-44 rounded-[8px] mb-5 md:mb-3 ${SHIMMER_DARK}`} aria-hidden="true" />
-            ) : (
-              <p className="font-display text-4xl md:text-3xl font-bold text-white tracking-tight mb-5 md:mb-3">
-                <AnimatedNumber value={stats.revenueToday} format={formatPrice} />
-              </p>
-            )}
-
-            <div className="h-[3px] w-full rounded-full bg-white/15 overflow-hidden mb-1.5">
-              <motion.div
-                className="h-full rounded-full bg-white"
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={{ ...SPRING, delay: loading ? 0.3 : 0 }}
-              />
-            </div>
-
-            {/* No literal "Loading…" label — a skeleton pill in place
-                of the caption reads as more deliberate than a word
-                competing for attention while the real numbers above
-                are still resolving. */}
-            {loading ? (
-              <div className={`h-3 w-40 rounded-full ${SHIMMER_DARK}`} aria-hidden="true" />
-            ) : (
-              <p className="text-white/50 text-xs font-medium">
-                {`${stats.completedOrders} of ${stats.totalOrders} orders fulfilled · ${pct}% done`}
-              </p>
-            )}
           </motion.div>
 
-          {/* Supporting stats */}
-          <div className="lg:col-span-2 grid grid-cols-3 lg:grid-cols-1 gap-3 md:gap-2">
-            {[
-              { label: 'Orders',   value: stats.totalOrders,    icon: ClipboardList, custom: 3 },
-              { label: 'Pending',  value: stats.pendingPickups, icon: Clock,         custom: 4 },
-              { label: 'Messages', value: stats.unreadMessages, icon: MessageCircle, custom: 5, to: '/messages' },
-            ].map(({ label, value, icon: Icon, custom, to }) => {
-              const isLink = Boolean(to);
-              const inner = (
-                <motion.div
-                  key={label}
-                  custom={custom} variants={fadeUp} initial="hidden" animate="visible"
-                  whileHover={isLink ? { y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' } : undefined}
-                  whileTap={isLink ? { scale: 0.96 } : undefined}
-                  aria-busy={loading}
-                  className={`bg-white rounded-[16px] p-4 md:p-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] flex flex-col justify-between ${
-                    isLink ? 'cursor-pointer' : 'cursor-default'
-                  }`}
-                >
-                  <div className="w-7 h-7 rounded-full bg-platinum flex items-center justify-center mb-3 md:mb-2">
-                    <Icon size={13} className="text-accent-dark" strokeWidth={2} />
-                  </div>
-                  <div>
-                    {loading ? (
-                      <div className={`h-5 w-8 rounded mb-1 ${SHIMMER_LIGHT}`} aria-hidden="true" />
-                    ) : (
-                      <p className="text-xl md:text-lg font-bold text-accent-dark leading-none mb-0.5 truncate">
-                        <AnimatedNumber value={value} />
-                      </p>
-                    )}
-                    <p className="text-xs text-olive truncate">{label}</p>
-                  </div>
-                </motion.div>
-              );
-              return to ? (
-                <Link
-                  key={label}
-                  to={to}
-                  className="rounded-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-dark/30"
-                >
-                  {inner}
-                </Link>
-              ) : inner;
-            })}
-          </div>
         </div>
-
-        {/* Recent orders */}
-        <motion.div
-          custom={6} variants={fadeUp} initial="hidden" animate="visible"
-          className="bg-white rounded-[20px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
-        >
-          <div className="flex items-center justify-between px-5 md:px-6 pt-5 md:pt-4 pb-3 md:pb-2">
-            <div className="flex items-center gap-2">
-              <h2 className="font-display text-base font-semibold text-accent-dark tracking-tight">
-                Recent orders
-              </h2>
-              <span className="relative flex w-1.5 h-1.5" title="Live">
-                <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-green-400 opacity-60" />
-                <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-green-500" />
-              </span>
-            </div>
-            <Link
-              to="/orders"
-              className="inline-flex items-center gap-0.5 text-sm font-semibold text-accent py-2.5 -my-2.5 transition-opacity duration-150 hover:opacity-70"
-            >
-              View all <ArrowUpRight size={14} strokeWidth={2.5} />
-            </Link>
-          </div>
-
-          {loading ? (
-            // Each shape shimmers independently (rather than the row
-            // pulsing as one flat block) — the standard "content is
-            // resolving piece by piece" skeleton pattern used by
-            // Stripe/Linear-style dashboards.
-            <div className="divide-y divide-platinum/60" aria-busy="true" aria-label="Loading recent orders">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 md:py-2.5">
-                  <div className={`w-9 h-9 md:w-8 md:h-8 rounded-full shrink-0 ${SHIMMER_LIGHT}`} />
-                  <div className="flex-1 space-y-2">
-                    <div className={`h-3 rounded w-1/3 ${SHIMMER_LIGHT}`} />
-                    <div className={`h-3 rounded w-2/3 ${SHIMMER_LIGHT}`} />
-                  </div>
-                  <div className={`h-3 rounded w-16 shrink-0 ${SHIMMER_LIGHT}`} />
-                </div>
-              ))}
-            </div>
-          ) : recentOrders.length === 0 ? (
-            <div className="py-12 flex flex-col items-center gap-2">
-              <p className="text-sm text-olive">No orders yet today.</p>
-            </div>
-          ) : (
-            <motion.div
-              className="divide-y divide-platinum/60"
-              variants={listContainer} initial="hidden" animate="visible"
-            >
-              {recentOrders.map((order) => (
-                <motion.div
-                  key={order.id}
-                  variants={listRow}
-                  whileTap={{ scale: 0.98, backgroundColor: 'rgba(0,0,0,0.02)' }}
-                >
-                  {/*
-                    Links to /orders with an ?open= query param rather
-                    than a /orders/:id path — OrdersScreen doesn't have a
-                    dedicated route per order (it manages the detail
-                    modal via local state), so a path param would need a
-                    new route registered just to reach it. The query
-                    param works with the existing /orders route as-is:
-                    OrdersScreen reads it on mount, opens
-                    OrderDetailModal for that id, then strips the param.
-                  */}
-                  <Link
-                    to={`/orders?open=${order.id}`}
-                    className="flex items-center gap-3.5 px-5 md:px-6 py-3.5 md:py-2.5 min-h-[56px] md:min-h-[48px] transition-colors duration-150 hover:bg-platinum/10 active:bg-platinum/20"
-                  >
-                    <div className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-accent-light/40 flex items-center justify-center text-[11px] font-bold text-accent-dark shrink-0 tracking-wide">
-                      {initials(order.customer_name)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[15px] font-semibold text-accent-dark truncate leading-snug">
-                        {order.customer_name}
-                      </p>
-                      <p className="text-[13px] text-olive truncate">{order.summary}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <span className="text-[15px] font-bold text-accent-dark tabular-nums">
-                        {formatPrice(order.total_amount)}
-                      </span>
-                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[order.status]}`}>
-                        {STATUS_LABEL[order.status]}
-                      </span>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-        </motion.div>
-
-        {/* Mobile FAB */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-          transition={{ ...SPRING, delay: 0.4 }}
-          className="sm:hidden fixed right-5 bottom-[calc(76px+env(safe-area-inset-bottom))] z-20"
-        >
-          <Link
-            to="/orders/new" aria-label="New order"
-            className="w-14 h-14 rounded-full bg-accent-dark text-white flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-transform duration-150 ease-out active:scale-90"
-          >
-            <Plus size={22} strokeWidth={2.5} />
-          </Link>
-        </motion.div>
       </MotionConfig>
     </ScreenShell>
   );
