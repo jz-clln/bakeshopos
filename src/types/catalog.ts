@@ -1,6 +1,8 @@
 // File: app/src/types/catalog.ts
 //
-// Mirrors the tables from supabase/migrations/0003_products.sql.
+// Mirrors the tables from supabase/migrations/0003_products.sql, plus
+// the image_url column added in
+// supabase/migrations/20260923_add_product_images.sql.
 // Keep these in sync if that schema ever changes.
 
 export interface ProductCategory {
@@ -22,6 +24,11 @@ export interface Product {
   lead_time_days: number;
   min_quantity: number;
   max_quantity: number | null;
+  // Public URL in the product-images storage bucket. Shown in the
+  // Catalog UI and sent as a real Messenger image attachment by the
+  // AI's send_product_photo tool when a customer asks what a product
+  // looks like. Null until a photo has been uploaded.
+  image_url: string | null;
   created_at: string;
   updated_at: string;
 }
