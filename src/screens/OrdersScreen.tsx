@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
-import { Plus, ChevronRight, Inbox, WifiOff, RefreshCw, Wallet, Calendar } from 'lucide-react';
+import { Plus, ChevronRight, Inbox, WifiOff, RefreshCw, Wallet, Calendar, Archive, ArchiveRestore } from 'lucide-react';
 import { ScreenShell } from '../components/layout/ScreenShell';
 import { useAuth } from '../lib/auth-context';
 import { supabase } from '../lib/supabase';
 import { formatPrice } from '../lib/currency';
-import { getValidNextStatuses, transitionOrderStatus } from '../api/orders';
+import { getValidNextStatuses, transitionOrderStatus, archiveOrder, unarchiveOrder } from '../api/orders';
 import { getAvatarPreset } from '../lib/avatarPresets';
 import { RecordPaymentSheet } from '../components/orders/RecordPaymentSheet';
 import { OrderDetailModal } from '../components/orders/OrderDetailModal';
@@ -45,6 +45,7 @@ interface OrderRow {
   status: OrderStatus;
   created_at: string;
   event_date: string | null;
+  archived_at: string | null;
 }
 
 // Shortened pipeline: inquiry -> quote -> confirmed (once paid) ->
@@ -91,9 +92,11 @@ function formatEventDate(iso: string | null): string | null {
 export function OrdersScreen() {
   const { organizationId } = useAuth();
   const [activeTab, setActiveTab] = useState<TabValue>('all');
+  const [showArchived, setShowArchived] = useState(false);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [archivingOrderId, setArchivingOrderId] = useState<string | null>(null);
 
   const [openMenuOrderId, setOpenMenuOrderId] = useState<string | null>(null);
   const [menuOptions, setMenuOptions] = useState<OrderStatus[]>([]);
@@ -127,27 +130,27 @@ export function OrdersScreen() {
   useEffect(() => {
     if (!organizationId) return;
     loadOrders();
-  }, [organizationId, activeTab]);
+  }, [organizationId, activeTab, showArchived]);
 
   async function loadOrders() {
     if (!organizationId) return;
     setLoading(true);
     setError(false);
 
-    // NOTE: this screen used to always filter to today's orders only
-    // (gte/lte against a start-of-day/end-of-day range), regardless
-    // of which tab was selected — including "All." That meant any
-    // order placed on a previous day became invisible here even
-    // though it was never deleted, which is exactly the "orders
-    // disappeared" report this fixed. "All" now genuinely means all
-    // orders for this shop; if a "today only" or date-range view is
-    // wanted later, it should be its own explicit filter control, not
-    // a hidden default baked into every tab.
+    // NOTE: this screen used to always filter to today's orders only,
+    // regardless of tab — that hid every past-day order and looked
+    // like data loss even though nothing was ever deleted. "All" now
+    // genuinely means all (non-archived) orders for this shop.
     let query = supabase
       .from('order_list_view')
-      .select('id, customer_id, customer_name, summary, total_quantity, total_amount, status, created_at, event_date')
+      .select('id, customer_id, customer_name, summary, total_quantity, total_amount, status, created_at, event_date, archived_at')
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
+
+    // Archived and active orders are mutually exclusive views, not a
+    // combined list with a visual distinction — an archived order is
+    // meant to be out of the way until explicitly looked for.
+    query = showArchived ? query.not('archived_at', 'is', null) : query.is('archived_at', null);
 
     if (activeTab !== 'all') {
       query = query.eq('status', activeTab);
@@ -235,6 +238,30 @@ export function OrdersScreen() {
     }
   }
 
+  // Archiving/unarchiving is deliberately NOT gated behind a
+  // confirmation dialog the way a true delete would be — it's fully
+  // reversible with one more tap, so the extra interruption isn't
+  // worth it. Optimistically removes the row from view immediately
+  // rather than waiting on a full reload, since the whole point is
+  // that this order no longer belongs in the current list.
+  async function handleToggleArchive(order: OrderRow) {
+    setArchivingOrderId(order.id);
+    setTransitionError(null);
+    try {
+      if (order.archived_at) {
+        await unarchiveOrder(order.id);
+      } else {
+        await archiveOrder(order.id);
+      }
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+    } catch (err) {
+      console.error('Failed to update archive status:', err);
+      setTransitionError(err instanceof Error ? err.message : 'Could not update this order.');
+    } finally {
+      setArchivingOrderId(null);
+    }
+  }
+
   return (
     <>
       <ScreenShell>
@@ -245,7 +272,7 @@ export function OrdersScreen() {
           >
             <div>
               <h1 className="font-display text-[26px] md:text-3xl font-bold tracking-tight text-accent-dark">
-                Orders
+                {showArchived ? 'Archived orders' : 'Orders'}
               </h1>
               {!loading && !error && orders.length > 0 && (
                 <p className="text-[13px] text-olive mt-0.5">
@@ -253,13 +280,37 @@ export function OrdersScreen() {
                 </p>
               )}
             </div>
-            <Link
-              to="/orders/new"
-              className="hidden sm:inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
-            >
-              <Plus size={15} strokeWidth={2.5} />
-              New order
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowArchived((v) => !v)}
+                className={`inline-flex items-center gap-1.5 h-11 px-4 rounded-full text-[13px] font-semibold transition-colors duration-150 active:scale-95 ${
+                  showArchived
+                    ? 'bg-accent-dark text-white'
+                    : 'bg-white text-olive shadow-[0_1px_4px_rgba(0,0,0,0.08)] hover:text-accent-dark'
+                }`}
+              >
+                {showArchived ? (
+                  <>
+                    <ArchiveRestore size={15} />
+                    Active orders
+                  </>
+                ) : (
+                  <>
+                    <Archive size={15} />
+                    Archived
+                  </>
+                )}
+              </button>
+              {!showArchived && (
+                <Link
+                  to="/orders/new"
+                  className="hidden sm:inline-flex items-center gap-2 rounded-full bg-accent-dark text-white px-5 h-11 text-sm font-semibold shadow-control transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+                >
+                  <Plus size={15} strokeWidth={2.5} />
+                  New order
+                </Link>
+              )}
+            </div>
           </motion.div>
 
           <motion.div
@@ -307,7 +358,7 @@ export function OrdersScreen() {
 
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeTab}
+              key={`${activeTab}-${showArchived}`}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
@@ -347,18 +398,22 @@ export function OrdersScreen() {
               ) : orders.length === 0 ? (
                 <div className="py-16 flex flex-col items-center gap-3 px-6 text-center">
                   <div className="w-11 h-11 rounded-full bg-platinum/60 flex items-center justify-center">
-                    <Inbox size={18} className="text-olive" />
+                    {showArchived ? <Archive size={18} className="text-olive" /> : <Inbox size={18} className="text-olive" />}
                   </div>
                   <p className="text-sm text-olive">
-                    No {activeTab === 'all' ? '' : STATUS_LABEL[activeTab as OrderStatus].toLowerCase() + ' '}orders yet.
+                    {showArchived
+                      ? 'No archived orders.'
+                      : `No ${activeTab === 'all' ? '' : STATUS_LABEL[activeTab as OrderStatus].toLowerCase() + ' '}orders yet.`}
                   </p>
-                  <Link
-                    to="/orders/new"
-                    className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark"
-                  >
-                    <Plus size={13} strokeWidth={2.5} />
-                    Create an order
-                  </Link>
+                  {!showArchived && (
+                    <Link
+                      to="/orders/new"
+                      className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-dark"
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                      Create an order
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <>
@@ -381,8 +436,21 @@ export function OrdersScreen() {
                       // only pre-confirmation status a payment gets
                       // recorded against. See
                       // 20260919_shorten_order_pipeline.sql.
-                      const canRecordPayment = order.status === 'quote';
+                      const canRecordPayment = order.status === 'quote' && !showArchived;
                       const eventDateLabel = formatEventDate(order.event_date);
+                      const isArchiving = archivingOrderId === order.id;
+
+                      const archiveButton = (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleArchive(order); }}
+                          disabled={isArchiving}
+                          aria-label={showArchived ? 'Unarchive order' : 'Archive order'}
+                          title={showArchived ? 'Move back to active orders' : 'Archive this order'}
+                          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-olive/60 hover:text-accent-dark hover:bg-platinum/50 transition-colors duration-150 disabled:opacity-40"
+                        >
+                          {showArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                        </button>
+                      );
 
                       return (
                         <motion.div key={order.id} layout="position" className="relative">
@@ -426,18 +494,21 @@ export function OrdersScreen() {
                                 )}
                               </div>
                               <div className="flex flex-col items-end gap-1.5 shrink-0">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleStatusPillTap(order); }}
-                                  className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_STYLES[order.status]}`}
-                                >
-                                  {STATUS_LABEL[order.status]}
-                                  <motion.span
-                                    animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
-                                    transition={{ duration: 0.15 }}
+                                <div className="flex items-center gap-1">
+                                  {archiveButton}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleStatusPillTap(order); }}
+                                    className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_STYLES[order.status]}`}
                                   >
-                                    <ChevronRight size={10} strokeWidth={2.5} />
-                                  </motion.span>
-                                </button>
+                                    {STATUS_LABEL[order.status]}
+                                    <motion.span
+                                      animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
+                                      transition={{ duration: 0.15 }}
+                                    >
+                                      <ChevronRight size={10} strokeWidth={2.5} />
+                                    </motion.span>
+                                  </button>
+                                </div>
                                 <span className="text-[15px] font-bold text-accent-dark tabular-nums">
                                   {formatPrice(order.total_amount)}
                                 </span>
@@ -467,24 +538,31 @@ export function OrdersScreen() {
                                 {formatPrice(order.total_amount)}
                               </span>
 
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleStatusPillTap(order); }}
-                                className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit justify-self-end ${STATUS_STYLES[order.status]}`}
-                              >
-                                {STATUS_LABEL[order.status]}
-                                <motion.span
-                                  animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
-                                  transition={{ duration: 0.15 }}
+                              <div className="flex items-center gap-1 justify-self-end">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleStatusPillTap(order); }}
+                                  className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${STATUS_STYLES[order.status]}`}
                                 >
-                                  <ChevronRight size={10} strokeWidth={2.5} />
-                                </motion.span>
-                              </button>
+                                  {STATUS_LABEL[order.status]}
+                                  <motion.span
+                                    animate={{ rotate: openMenuOrderId === order.id ? 90 : 0 }}
+                                    transition={{ duration: 0.15 }}
+                                  >
+                                    <ChevronRight size={10} strokeWidth={2.5} />
+                                  </motion.span>
+                                </button>
+                                {archiveButton}
+                              </div>
                             </div>
                           </motion.div>
 
                           {/* Payment action row — shown separately from
                               the status pill, since it's not itself a
-                              status change, just a prerequisite for one. */}
+                              status change, just a prerequisite for one.
+                              Hidden entirely in the archived view — an
+                              archived order isn't being actively worked
+                              on, so recording a new payment against it
+                              would be an odd action to surface here. */}
                           {canRecordPayment && paymentSheetOrderId !== order.id && (
                             <div className="px-5 md:px-6 pb-3 -mt-2">
                               <button
@@ -547,18 +625,20 @@ export function OrdersScreen() {
             </motion.div>
           </AnimatePresence>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, ease: EASE, delay: 0.35 }}
-            className="sm:hidden fixed right-5 bottom-[calc(76px+env(safe-area-inset-bottom))] z-20"
-          >
-            <Link
-              to="/orders/new" aria-label="New order"
-              className="w-14 h-14 rounded-full bg-accent-dark text-white flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-transform duration-150 active:scale-90"
+          {!showArchived && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, ease: EASE, delay: 0.35 }}
+              className="sm:hidden fixed right-5 bottom-[calc(76px+env(safe-area-inset-bottom))] z-20"
             >
-              <Plus size={22} strokeWidth={2.5} />
-            </Link>
-          </motion.div>
+              <Link
+                to="/orders/new" aria-label="New order"
+                className="w-14 h-14 rounded-full bg-accent-dark text-white flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-transform duration-150 active:scale-90"
+              >
+                <Plus size={22} strokeWidth={2.5} />
+              </Link>
+            </motion.div>
+          )}
         </MotionConfig>
       </ScreenShell>
 
