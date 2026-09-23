@@ -1,11 +1,11 @@
 // File: app/src/components/settings/GuardrailActivity.tsx
-//
-// Shows recent times Keki's order-promise guardrail fired, so an
-// owner can actually see this happened instead of it only existing in
-// Edge Function logs. Sits next to UsageMeter in the "AI usage"
-// section of SettingsScreen — same card, same visual language.
 
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  ShieldCheck,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { GuardrailEvent } from '../../api/aiSettings';
 
@@ -16,58 +16,181 @@ interface GuardrailActivityProps {
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.round(diffMs / 60_000);
+
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;
+
   const hours = Math.round(minutes / 60);
+
   if (hours < 24) return `${hours}h ago`;
+
   const days = Math.round(hours / 24);
   return `${days}d ago`;
 }
 
-export function GuardrailActivity({ events }: GuardrailActivityProps) {
+export function GuardrailActivity({
+  events,
+}: GuardrailActivityProps) {
   if (events.length === 0) {
     return (
-      <p className="text-[13px] text-olive">
-        No issues caught recently
-      </p>
+      <div
+        className="
+          rounded-[16px]
+          border border-black/[0.04]
+          bg-[#FAF8F5]
+          px-4 py-4
+          flex items-center gap-3
+        "
+      >
+        <div
+          className="
+            w-10 h-10
+            rounded-[12px]
+            bg-[#F4ECE0]
+            text-[#2A2320]
+            flex items-center justify-center
+            shrink-0
+          "
+        >
+          <ShieldCheck size={18} strokeWidth={1.9} />
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-accent-dark">
+            Everything looks good
+          </p>
+
+          <p className="text-[12px] text-olive mt-0.5 leading-relaxed">
+            No guardrail issues were caught recently.
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="divide-y divide-platinum/60">
-      {events.map((event) => {
+    <div
+      className="
+        rounded-[18px]
+        border border-black/[0.04]
+        bg-[#FAF8F5]
+        overflow-hidden
+      "
+    >
+      {events.map((event, index) => {
         const isEscalated = event.outcome === 'escalated';
+
+        const title = isEscalated
+          ? `Needed your help with ${event.customerName}`
+          : `Resolved an issue with ${event.customerName}`;
+
+        const description = isEscalated
+          ? 'Keki caught an unresolved order promise and handed the conversation to you.'
+          : 'Keki caught an order-promise issue, retried, and resolved it automatically.';
+
         return (
-          <Link
-            key={event.id}
-            to={`/messages/${event.conversationId}`}
-            className="flex items-center gap-3 py-3 first:pt-0 last:pb-0 -mx-1 px-1 rounded-[10px] transition-colors duration-150 active:bg-platinum/30"
-          >
-            <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                isEscalated ? 'bg-red-50' : 'bg-amber-50'
-              }`}
+          <div key={event.id}>
+            <Link
+              to={`/messages/${event.conversationId}`}
+              className="
+                group
+                flex items-center gap-3.5
+                px-4 py-4
+                transition-colors duration-150
+                hover:bg-black/[0.018]
+                active:bg-black/[0.035]
+              "
             >
-              {isEscalated ? (
-                <AlertTriangle size={14} className="text-red-500" />
-              ) : (
-                <CheckCircle2 size={14} className="text-amber-500" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium text-accent-dark truncate">
-                {isEscalated
-                  ? `Needed your help with ${event.customerName}`
-                  : `Caught and fixed itself with ${event.customerName}`}
-              </p>
-              <p className="text-[12px] text-olive">
-                {isEscalated
-                  ? 'Almost sent an unresolved order promise, handed off to you'
-                  : 'Almost stalled on an order promise, then retried and resolved it'}
-              </p>
-            </div>
-            <p className="text-[11px] text-olive/70 shrink-0 tabular-nums">{timeAgo(event.createdAt)}</p>
-          </Link>
+              {/* Status icon */}
+              <div
+                className={`
+                  w-10 h-10
+                  rounded-[12px]
+                  flex items-center justify-center
+                  shrink-0
+                  border
+                  ${
+                    isEscalated
+                      ? 'bg-red-50 border-red-100 text-red-500'
+                      : 'bg-amber-50 border-amber-100 text-amber-600'
+                  }
+                `}
+              >
+                {isEscalated ? (
+                  <AlertTriangle
+                    size={17}
+                    strokeWidth={2}
+                  />
+                ) : (
+                  <CheckCircle2
+                    size={17}
+                    strokeWidth={2}
+                  />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-[13px] font-semibold text-accent-dark truncate">
+                    {title}
+                  </p>
+
+                  <span
+                    className={`
+                      shrink-0
+                      rounded-full
+                      px-2 py-0.5
+                      text-[9px]
+                      font-semibold
+                      uppercase
+                      tracking-[0.08em]
+                      ${
+                        isEscalated
+                          ? 'bg-red-50 text-red-600'
+                          : 'bg-amber-50 text-amber-700'
+                      }
+                    `}
+                  >
+                    {isEscalated ? 'Escalated' : 'Resolved'}
+                  </span>
+                </div>
+
+                <p className="text-[12px] text-olive leading-relaxed mt-1 line-clamp-2">
+                  {description}
+                </p>
+
+                <p className="text-[11px] text-olive/60 mt-1.5 tabular-nums">
+                  {timeAgo(event.createdAt)}
+                </p>
+              </div>
+
+              {/* Navigation */}
+              <div
+                className="
+                  w-8 h-8
+                  rounded-full
+                  border border-black/[0.04]
+                  bg-white/70
+                  flex items-center justify-center
+                  shrink-0
+                  text-olive/45
+                  transition-all duration-150
+                  group-hover:text-accent-dark
+                  group-hover:bg-white
+                "
+              >
+                <ChevronRight
+                  size={15}
+                  strokeWidth={1.9}
+                />
+              </div>
+            </Link>
+
+            {index < events.length - 1 && (
+              <div className="mx-4 h-px bg-black/[0.05]" />
+            )}
+          </div>
         );
       })}
     </div>
