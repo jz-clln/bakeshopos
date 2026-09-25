@@ -6,7 +6,7 @@
 // unread data and overrides it before passing NAV_ITEMS down.
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutGrid, ShoppingBag, Cake, MessageSquare, Settings } from 'lucide-react';
+import { LayoutGrid, ShoppingBag, Cake, MessageSquare, Settings, BarChart3 } from 'lucide-react';
 
 export interface NavItem {
   to: string;
@@ -17,9 +17,10 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { to: '/',         label: 'Dashboard', icon: LayoutGrid,    end: true  },
-  { to: '/orders',   label: 'Orders',    icon: ShoppingBag,   end: false },
-  { to: '/catalog',  label: 'Catalog',   icon: Cake,          end: false },
-  { to: '/messages', label: 'Messages',  icon: MessageSquare, end: false },
-  { to: '/settings', label: 'Settings',  icon: Settings,      end: false },
+  { to: '/',           label: 'Dashboard',  icon: LayoutGrid,    end: true  },
+  { to: '/statistics', label: 'Statistics', icon: BarChart3,     end: false },
+  { to: '/orders',     label: 'Orders',     icon: ShoppingBag,   end: false },
+  { to: '/catalog',    label: 'Catalog',    icon: Cake,          end: false },
+  { to: '/messages',   label: 'Messages',   icon: MessageSquare, end: false },
+  { to: '/settings',   label: 'Settings',   icon: Settings,      end: false },
 ];
