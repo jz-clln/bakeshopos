@@ -392,10 +392,10 @@ export function StatisticsScreen() {
 
               {/* Top products + orders by status — stacked on mobile,
                   side by side on larger screens. */}
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <motion.div
                   custom={2} variants={fadeUp} initial="hidden" animate="visible"
-                  className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4"
+                  className="min-w-0 bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4"
                 >
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
@@ -438,7 +438,7 @@ export function StatisticsScreen() {
 
                 <motion.div
                   custom={3} variants={fadeUp} initial="hidden" animate="visible"
-                  className="bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4"
+                  className="min-w-0 bg-white rounded-[20px] shadow-[0_1px_4px_rgba(0,0,0,0.06)] px-5 py-4"
                 >
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-[10px] bg-accent-light/30 flex items-center justify-center shrink-0">
