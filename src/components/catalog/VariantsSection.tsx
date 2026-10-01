@@ -3,6 +3,11 @@
 // Manages a product's variants (sizes) inline: list, add, toggle
 // active, delete. No separate modal/screen; everything happens right
 // in this card.
+//
+// Each size can also carry a private "cost to make one" — what it costs
+// the shop, used later to show profit. It's owner-only and optional:
+// blank means "not entered yet" (stored as null, i.e. unknown), which
+// is deliberately different from typing 0.
 
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -17,6 +22,17 @@ import type { ProductVariant } from '../../types/catalog';
 interface VariantsSectionProps {
   productId: string;
   variants: ProductVariant[];
+}
+
+// Blank input means "no cost entered" (null, unknown) — valid, and NOT
+// the same as 0. Anything that isn't a finite, non-negative number is
+// invalid.
+function parseCostInput(raw: string): { valid: boolean; centavos: number | null } {
+  const trimmed = raw.trim();
+  if (trimmed === '') return { valid: true, centavos: null };
+  const value = parseFloat(trimmed);
+  if (!Number.isFinite(value) || value < 0) return { valid: false, centavos: null };
+  return { valid: true, centavos: Math.round(value * 100) };
 }
 
 export function VariantsSection({ productId, variants }: VariantsSectionProps) {
@@ -74,6 +90,13 @@ export function VariantsSection({ productId, variants }: VariantsSectionProps) {
                   })
                 }
                 onDelete={() => deleteVariant.mutate(variant.id)}
+                onSaveCost={(costAmount, onSuccess) =>
+                  updateVariant.mutate(
+                    { id: variant.id, updates: { cost_amount: costAmount } },
+                    { onSuccess }
+                  )
+                }
+                savingCost={updateVariant.isPending}
               />
             ))}
           </div>
@@ -82,9 +105,9 @@ export function VariantsSection({ productId, variants }: VariantsSectionProps) {
         {showAddForm ? (
           <AddVariantForm
             onCancel={() => setShowAddForm(false)}
-            onSubmit={(name, priceAmount) => {
+            onSubmit={(name, priceAmount, costAmount) => {
               createVariant.mutate(
-                { name, priceAmount },
+                { name, priceAmount, costAmount },
                 { onSuccess: () => setShowAddForm(false) }
               );
             }}
@@ -116,51 +139,149 @@ function VariantRow({
   variant,
   onToggleActive,
   onDelete,
+  onSaveCost,
+  savingCost,
 }: {
   variant: ProductVariant;
   onToggleActive: () => void;
   onDelete: () => void;
+  onSaveCost: (costAmount: number | null, onSuccess: () => void) => void;
+  savingCost: boolean;
 }) {
+  const [editingCost, setEditingCost] = useState(false);
+  const [costPesos, setCostPesos] = useState('');
+
+  const parsedCost = parseCostInput(costPesos);
+  const hasCost = variant.cost_amount !== null && variant.cost_amount !== undefined;
+  const profit = hasCost ? variant.price_amount - (variant.cost_amount as number) : null;
+
+  function openCostEditor() {
+    // Reset from the saved value every time it opens, so a cancelled
+    // edit never leaves stale text behind.
+    setCostPesos(hasCost ? ((variant.cost_amount as number) / 100).toFixed(2) : '');
+    setEditingCost(true);
+  }
+
+  function handleSaveCost() {
+    if (!parsedCost.valid) return;
+    onSaveCost(parsedCost.centavos, () => setEditingCost(false));
+  }
+
   return (
-    <div className="group flex min-h-[68px] items-center justify-between gap-4 px-5 py-3.5 transition-colors duration-150 hover:bg-platinum/[0.12]">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-[14px] font-semibold text-accent-dark">
-            {variant.name}
+    <div>
+      <div className="group flex min-h-[68px] items-center justify-between gap-4 px-5 py-3.5 transition-colors duration-150 hover:bg-platinum/[0.12]">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-[14px] font-semibold text-accent-dark">
+              {variant.name}
+            </p>
+
+            <span
+              className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                variant.is_active ? 'bg-accent-dark' : 'bg-olive/35'
+              }`}
+            />
+          </div>
+
+          <p className="mt-0.5 text-[13px] font-medium tabular-nums text-olive">
+            {formatPrice(variant.price_amount)}
           </p>
 
-          <span
-            className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
-              variant.is_active ? 'bg-accent-dark' : 'bg-olive/35'
-            }`}
-          />
+          <button
+            onClick={openCostEditor}
+            className="mt-1 text-left text-[12px] font-medium tabular-nums transition-opacity duration-150 hover:opacity-70"
+          >
+            {!hasCost ? (
+              <span className="text-amber-600">
+                Cost not set <span className="text-olive/60">· Add</span>
+              </span>
+            ) : profit !== null && profit < 0 ? (
+              <span className="text-olive/70">
+                Cost {formatPrice(variant.cost_amount as number)} ·{' '}
+                <span className="text-red-500">Loss of {formatPrice(Math.abs(profit))}</span>
+              </span>
+            ) : (
+              <span className="text-olive/70">
+                Cost {formatPrice(variant.cost_amount as number)} · Profit {formatPrice(profit as number)}
+              </span>
+            )}
+          </button>
         </div>
 
-        <p className="mt-0.5 text-[13px] font-medium tabular-nums text-olive">
-          {formatPrice(variant.price_amount)}
-        </p>
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          <button
+            onClick={onToggleActive}
+            className={`min-w-[72px] rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-150 active:scale-95 ${
+              variant.is_active
+                ? 'border-accent-dark bg-accent-dark text-white shadow-[0_1px_3px_rgba(0,0,0,0.12)] hover:bg-accent-dark/90'
+                : 'border-platinum bg-white text-olive hover:border-olive/30 hover:bg-platinum/20'
+            }`}
+          >
+            {variant.is_active ? 'Active' : 'Inactive'}
+          </button>
+
+          <button
+            onClick={onDelete}
+            aria-label={`Delete ${variant.name}`}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-olive/60 transition-all duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90"
+          >
+            <Trash2 size={15} strokeWidth={1.8} />
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-1.5">
-        <button
-          onClick={onToggleActive}
-          className={`min-w-[72px] rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-150 active:scale-95 ${
-            variant.is_active
-              ? 'border-accent-dark bg-accent-dark text-white shadow-[0_1px_3px_rgba(0,0,0,0.12)] hover:bg-accent-dark/90'
-              : 'border-platinum bg-white text-olive hover:border-olive/30 hover:bg-platinum/20'
-          }`}
-        >
-          {variant.is_active ? 'Active' : 'Inactive'}
-        </button>
+      {editingCost && (
+        <div className="border-t border-platinum/50 bg-platinum/[0.10] px-5 py-4">
+          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-olive/75">
+            Cost to make one
+          </label>
 
-        <button
-          onClick={onDelete}
-          aria-label={`Delete ${variant.name}`}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-olive/60 transition-all duration-150 hover:bg-red-50 hover:text-red-500 active:scale-90"
-        >
-          <Trash2 size={15} strokeWidth={1.8} />
-        </button>
-      </div>
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[14px] font-medium text-olive/60">
+              ₱
+            </span>
+
+            <input
+              type="number"
+              inputMode="decimal"
+              autoFocus
+              placeholder="0.00"
+              value={costPesos}
+              onChange={(e) => setCostPesos(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); handleSaveCost(); }
+                if (e.key === 'Escape') { e.preventDefault(); setEditingCost(false); }
+              }}
+              className="h-11 w-full rounded-[12px] border border-platinum bg-white pl-8 pr-3.5 text-[14px] font-medium tabular-nums text-accent-dark shadow-[0_1px_2px_rgba(0,0,0,0.02)] outline-none transition-all duration-150 placeholder:text-olive/40 hover:border-olive/25 focus:border-accent-dark/40 focus:ring-2 focus:ring-accent-dark/[0.06]"
+            />
+          </div>
+
+          <p className="mt-1.5 text-[12px] text-olive/65">
+            Ingredients, plus anything else you want counted. Only you can see this. Leave it blank if you're not sure yet.
+          </p>
+
+          {!parsedCost.valid && (
+            <p className="mt-1.5 text-[12px] text-red-600">Enter a number, like 120 or 120.50.</p>
+          )}
+
+          <div className="mt-3 flex gap-2.5">
+            <button
+              onClick={() => setEditingCost(false)}
+              className="h-11 flex-1 rounded-[12px] border border-platinum bg-white text-[13px] font-semibold text-accent-dark transition-all duration-150 hover:bg-platinum/25 active:scale-[0.98]"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={handleSaveCost}
+              disabled={!parsedCost.valid || savingCost}
+              className="h-11 flex-1 rounded-[12px] bg-accent-dark text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.12)] transition-all duration-150 hover:bg-accent-dark/90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none active:scale-[0.98]"
+            >
+              {savingCost ? 'Saving…' : 'Save cost'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -171,21 +292,24 @@ function AddVariantForm({
   submitting,
 }: {
   onCancel: () => void;
-  onSubmit: (name: string, priceAmount: number) => void;
+  onSubmit: (name: string, priceAmount: number, costAmount: number | null) => void;
   submitting: boolean;
 }) {
   const [name, setName] = useState('');
   const [pricePesos, setPricePesos] = useState('');
+  const [costPesos, setCostPesos] = useState('');
 
   const priceAmount = Math.round(parseFloat(pricePesos || '0') * 100);
+  const parsedCost = parseCostInput(costPesos);
   const canSubmit =
     name.trim().length > 0 &&
     !Number.isNaN(priceAmount) &&
-    priceAmount > 0;
+    priceAmount > 0 &&
+    parsedCost.valid;
 
   function handleSubmit() {
     if (!canSubmit) return;
-    onSubmit(name.trim(), priceAmount);
+    onSubmit(name.trim(), priceAmount, parsedCost.centavos);
   }
 
   return (
@@ -233,6 +357,36 @@ function AddVariantForm({
               className="h-11 w-full rounded-[12px] border border-platinum bg-white pl-8 pr-3.5 text-[14px] font-medium tabular-nums text-accent-dark shadow-[0_1px_2px_rgba(0,0,0,0.02)] outline-none transition-all duration-150 placeholder:text-olive/40 hover:border-olive/25 focus:border-accent-dark/40 focus:ring-2 focus:ring-accent-dark/[0.06]"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-olive/75">
+            Cost to make one{' '}
+            <span className="font-medium normal-case tracking-normal text-olive/50">(optional)</span>
+          </label>
+
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[14px] font-medium text-olive/60">
+              ₱
+            </span>
+
+            <input
+              type="number"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={costPesos}
+              onChange={(e) => setCostPesos(e.target.value)}
+              className="h-11 w-full rounded-[12px] border border-platinum bg-white pl-8 pr-3.5 text-[14px] font-medium tabular-nums text-accent-dark shadow-[0_1px_2px_rgba(0,0,0,0.02)] outline-none transition-all duration-150 placeholder:text-olive/40 hover:border-olive/25 focus:border-accent-dark/40 focus:ring-2 focus:ring-accent-dark/[0.06]"
+            />
+          </div>
+
+          <p className="mt-1.5 text-[12px] text-olive/65">
+            Only you can see this. It lets your dashboard show profit, not just sales.
+          </p>
+
+          {!parsedCost.valid && (
+            <p className="mt-1.5 text-[12px] text-red-600">Enter a number, like 120 or 120.50.</p>
+          )}
         </div>
       </div>
 

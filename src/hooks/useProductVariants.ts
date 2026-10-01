@@ -38,7 +38,7 @@ export function useUpdateVariant(productId: string) {
       updates,
     }: {
       id: string;
-      updates: Partial<Pick<ProductVariant, 'name' | 'price_amount' | 'is_active'>>;
+      updates: Partial<Pick<ProductVariant, 'name' | 'price_amount' | 'cost_amount' | 'is_active'>>;
     }) => updateVariant(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product', productId] });

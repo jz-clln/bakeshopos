@@ -39,6 +39,11 @@ export interface ProductVariant {
   product_id: string;
   name: string;
   price_amount: number; // centavos — never a float
+  // What it costs to make one unit, in centavos. null means "not
+  // entered yet" (unknown), NOT zero — anything computing profit must
+  // treat null as unknown. Owner-facing only; never shown to customers
+  // or the AI assistant. See 20260930_add_cost_tracking.sql.
+  cost_amount: number | null;
   price_currency: string;
   is_active: boolean;
   created_at: string;

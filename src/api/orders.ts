@@ -103,7 +103,7 @@ export async function createOrder(organizationId: string, input: CreateOrderInpu
 
   const { data: variant, error: variantError } = await supabase
     .from('product_variants')
-    .select('product_id')
+    .select('product_id, cost_amount')
     .eq('id', input.variantId)
     .single();
 
@@ -131,6 +131,10 @@ export async function createOrder(organizationId: string, input: CreateOrderInpu
     variant_id: input.variantId,
     quantity: input.quantity,
     unit_price_amount: unitPrice,
+    // A copy of the size's cost as of right now, so later edits to that
+    // cost never rewrite the profit of an order that's already placed.
+    // Null when no cost was entered — unknown, not zero.
+    unit_cost_amount: variant.cost_amount ?? null,
   });
 
   if (itemError) throw new Error(itemError.message);
